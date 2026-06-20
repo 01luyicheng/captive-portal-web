@@ -101,14 +101,42 @@ Chain configs (payment amounts, tiers, quotas) can be customized via a JSON file
     "block_time": 2,
     "recommended": true,
     "icon": "blue_circle",
+    "tokens": {
+      "ETH": {"type": "native"},
+      "USDC": {"type": "erc20", "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "decimals": 6}
+    },
     "tiers": [
-      {"amount_eth": "0.00001", "amount_wei": "10000000000000", "quota_bytes": 104857600}
+      {"amount_usd": 0.50, "quota_bytes": 104857600}
     ]
   }
 }
 ```
 
 If the file is missing or invalid, the built-in defaults are used.
+
+### Pricing
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PRICE_TOLERANCE_PERCENT` | `20` | Payment amount tolerance (0-50%) |
+| `PRICE_LOCK_MODE` | `lock` | Price lock mode: `lock` or `realtime` |
+| `PRICE_LOCK_DURATION` | `900` | Price lock duration in seconds |
+| `DEFAULT_TOKEN` | `ETH` | Default payment token |
+| `FALLBACK_CURRENCY` | `usd` | Fiat currency for pricing |
+| `COINMARKETCAP_API_KEY` | (empty) | CoinMarketCap API key (optional) |
+
+### Portal Branding
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORTAL_TITLE` | `Wi-Fi 支付 portal` | Browser tab title |
+| `PORTAL_WELCOME` | `欢迎连接 Wi-Fi` | Welcome heading |
+| `PORTAL_LEAD` | `支付少量加密货币即可使用本无线网络。` | Lead text |
+| `PORTAL_FOOTER` | (empty) | Custom footer text |
+| `PORTAL_SUPPORT_URL` | (empty) | Support link URL |
+| `PORTAL_LOGO_URL` | (empty) | Logo image URL |
+| `QR_FILL_COLOR` | `black` | QR code fill color |
+| `QR_BACK_COLOR` | `white` | QR code background color |
 
 ## API Endpoints
 

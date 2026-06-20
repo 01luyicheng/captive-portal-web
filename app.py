@@ -171,11 +171,16 @@ _DEFAULT_CHAINS = {
         "blockscout_api": "https://polygon.blockscout.com/api/v2",
         "block_time": 2,
         "recommended": True,
-        "icon": "🟣",
+        "icon": "purple_circle",
+        "tokens": {
+            "ETH": {"type": "native"},
+            "USDC": {"type": "erc20", "address": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", "decimals": 6},
+            "USDT": {"type": "erc20", "address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", "decimals": 6},
+        },
         "tiers": [
-            {"amount_eth": "0.005", "amount_wei": "5000000000000000", "quota_bytes": 104857600},
-            {"amount_eth": "0.015", "amount_wei": "15000000000000000", "quota_bytes": 536870912},
-            {"amount_eth": "0.025", "amount_wei": "25000000000000000", "quota_bytes": 1073741824},
+            {"amount_usd": 0.50, "quota_bytes": 104857600},
+            {"amount_usd": 1.50, "quota_bytes": 536870912},
+            {"amount_usd": 2.50, "quota_bytes": 1073741824},
         ],
     },
     "arbitrum": {
@@ -184,11 +189,16 @@ _DEFAULT_CHAINS = {
         "blockscout_api": "https://arbitrum.blockscout.com/api/v2",
         "block_time": 0.25,
         "recommended": False,
-        "icon": "🔷",
+        "icon": "blue_diamond",
+        "tokens": {
+            "ETH": {"type": "native"},
+            "USDC": {"type": "erc20", "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", "decimals": 6},
+            "USDT": {"type": "erc20", "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", "decimals": 6},
+        },
         "tiers": [
-            {"amount_eth": "0.00001", "amount_wei": "10000000000000", "quota_bytes": 104857600},
-            {"amount_eth": "0.00003", "amount_wei": "30000000000000", "quota_bytes": 536870912},
-            {"amount_eth": "0.00005", "amount_wei": "50000000000000", "quota_bytes": 1073741824},
+            {"amount_usd": 0.50, "quota_bytes": 104857600},
+            {"amount_usd": 1.50, "quota_bytes": 536870912},
+            {"amount_usd": 2.50, "quota_bytes": 1073741824},
         ],
     },
     "optimism": {
@@ -197,11 +207,16 @@ _DEFAULT_CHAINS = {
         "blockscout_api": "https://optimism.blockscout.com/api/v2",
         "block_time": 2,
         "recommended": False,
-        "icon": "🔴",
+        "icon": "red_circle",
+        "tokens": {
+            "ETH": {"type": "native"},
+            "USDC": {"type": "erc20", "address": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", "decimals": 6},
+            "USDT": {"type": "erc20", "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58", "decimals": 6},
+        },
         "tiers": [
-            {"amount_eth": "0.00001", "amount_wei": "10000000000000", "quota_bytes": 104857600},
-            {"amount_eth": "0.00003", "amount_wei": "30000000000000", "quota_bytes": 536870912},
-            {"amount_eth": "0.00005", "amount_wei": "50000000000000", "quota_bytes": 1073741824},
+            {"amount_usd": 0.50, "quota_bytes": 104857600},
+            {"amount_usd": 1.50, "quota_bytes": 536870912},
+            {"amount_usd": 2.50, "quota_bytes": 1073741824},
         ],
     },
     "bsc": {
@@ -210,11 +225,16 @@ _DEFAULT_CHAINS = {
         "blockscout_api": "https://bnb.blockscout.com/api/v2",
         "block_time": 3,
         "recommended": False,
-        "icon": "🟡",
+        "icon": "yellow_diamond",
+        "tokens": {
+            "ETH": {"type": "native"},
+            "USDC": {"type": "erc20", "address": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", "decimals": 18},
+            "USDT": {"type": "erc20", "address": "0x55d398326f99059fF775485246999027B3197955", "decimals": 18},
+        },
         "tiers": [
-            {"amount_eth": "0.0001", "amount_wei": "100000000000000", "quota_bytes": 104857600},
-            {"amount_eth": "0.0003", "amount_wei": "300000000000000", "quota_bytes": 536870912},
-            {"amount_eth": "0.0005", "amount_wei": "500000000000000", "quota_bytes": 1073741824},
+            {"amount_usd": 0.50, "quota_bytes": 104857600},
+            {"amount_usd": 1.50, "quota_bytes": 536870912},
+            {"amount_usd": 2.50, "quota_bytes": 1073741824},
         ],
     },
     "ethereum": {
@@ -223,11 +243,16 @@ _DEFAULT_CHAINS = {
         "blockscout_api": "https://eth.blockscout.com/api/v2",
         "block_time": 12,
         "recommended": False,
-        "icon": "⬛",
+        "icon": "black_diamond",
+        "tokens": {
+            "ETH": {"type": "native"},
+            "USDC": {"type": "erc20", "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "decimals": 6},
+            "USDT": {"type": "erc20", "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7", "decimals": 6},
+        },
         "tiers": [
-            {"amount_eth": "0.00001", "amount_wei": "10000000000000", "quota_bytes": 104857600},
-            {"amount_eth": "0.00003", "amount_wei": "30000000000000", "quota_bytes": 536870912},
-            {"amount_eth": "0.00005", "amount_wei": "50000000000000", "quota_bytes": 1073741824},
+            {"amount_usd": 1.00, "quota_bytes": 104857600},
+            {"amount_usd": 3.00, "quota_bytes": 536870912},
+            {"amount_usd": 5.00, "quota_bytes": 1073741824},
         ],
     },
 }
@@ -261,7 +286,7 @@ def _load_chains():
 
 CHAINS = _load_chains()
 
-DEFAULT_CHAIN = "base"
+DEFAULT_CHAIN = os.environ.get("DEFAULT_CHAIN", "base")
 
 # ---------------------------------------------------------------------------
 # HD wallet setup
@@ -606,6 +631,27 @@ def get_or_create_pending_payment(client_ip, chain_id, tier_index=0):
         tier_index = 0
     tier = tiers[tier_index]
 
+    token = request.args.get("token", DEFAULT_TOKEN).upper() if request else DEFAULT_TOKEN
+    tokens = cfg.get("tokens", {"ETH": {"type": "native"}})
+    if token not in tokens:
+        token = DEFAULT_TOKEN
+
+    needed_symbols = set()
+    for t in tiers:
+        if "amount_usd" in t:
+            for sym in tokens:
+                needed_symbols.add(sym)
+    needed_symbols.add(token)
+    prices = _price_service.get_prices(list(needed_symbols))
+
+    if "amount_wei" in tier:
+        amount_wei = tier["amount_wei"]
+    elif "amount_usd" in tier:
+        _, unit_val, _ = _price_service.convert_usd_to_token(tier["amount_usd"], token, prices)
+        amount_wei = str(unit_val or "0")
+    else:
+        amount_wei = "0"
+
     now = int(time.time())
     expires = now + PAYMENT_PENDING_DURATION
     conn = _db_conn()
@@ -654,14 +700,14 @@ def get_or_create_pending_payment(client_ip, chain_id, tier_index=0):
                     (client_ip, chain_id, address, derivation_index, amount_wei, quota_bytes, tier_index, status, created_at, expires_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
                 """,
-                (client_ip, chain_id, address, index, tier["amount_wei"], tier["quota_bytes"], tier_index, now, expires),
+                (client_ip, chain_id, address, index, amount_wei, tier["quota_bytes"], tier_index, now, expires),
             )
             conn.execute("COMMIT")
             return {
                 "id": cur.lastrowid,
                 "address": address,
                 "derivation_index": index,
-                "amount_wei": tier["amount_wei"],
+                "amount_wei": amount_wei,
                 "quota_bytes": tier["quota_bytes"],
                 "tier_index": tier_index,
                 "status": "pending",
