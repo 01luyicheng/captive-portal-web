@@ -74,6 +74,7 @@
     function updateChainUI() {
         const cfg = chains[currentChain];
         if (!cfg) return;
+        if (!qrCode) return;
         const address = CONFIG ? CONFIG.ethAddress : addressEl.textContent;
         const tier = selectedTier();
         if (!tier) return;
@@ -82,6 +83,10 @@
             '&address=' + encodeURIComponent(address) +
             '&amount_wei=' + encodeURIComponent(tier.amount_wei) +
             '&t=' + Date.now();
+        qrCode.onerror = function() {
+            qrCode.alt = '二维码加载失败，请刷新页面';
+            qrCode.style.display = 'none';
+        };
 
         chainInfo.textContent = '';
         const nameEl = document.createElement('strong');
@@ -190,7 +195,8 @@
         try {
             if (!auto && checkBtn) {
                 checkBtn.disabled = true;
-                showStatus('正在检查支付状态…', 'info');
+                showStatus('', 'info');
+                statusEl.innerHTML = '<span class="spinner"></span>正在检查支付状态…';
             }
 
             const url = '/api/check-payment?chain=' + encodeURIComponent(currentChain) +
@@ -331,22 +337,33 @@
     }
 
     if (copyBtn && addressEl) {
+        function fallbackCopy(text) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.setSelectionRange(0, ta.value.length);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                showStatus('地址已复制到剪贴板', 'success');
+            } catch (e) {
+                showStatus('复制失败', 'error');
+            }
+            document.body.removeChild(ta);
+        }
+
         copyBtn.addEventListener('click', function () {
-            const text = addressEl.textContent;
-            if (navigator.clipboard) {
+            var text = addressEl.textContent;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).then(function () {
                     showStatus('地址已复制到剪贴板', 'success');
                 }, function () {
-                    showStatus('复制失败', 'error');
+                    fallbackCopy(text);
                 });
             } else {
-                const ta = document.createElement('textarea');
-                ta.value = text;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-                showStatus('地址已复制到剪贴板', 'success');
+                fallbackCopy(text);
             }
         });
     }
@@ -405,7 +422,8 @@
                 }
             }
         } catch (err) {
-            // ignore polling errors
+            var statusText = document.getElementById('network-status');
+            if (statusText) statusText.textContent = '连接中断，请检查网络…';
         }
     }
 
@@ -414,13 +432,22 @@
         fetch('/generate_204', { cache: 'no-store', redirect: 'manual' })
             .then(function (res) {
                 if (res.status === 204) {
-                    if (statusText) statusText.textContent = '网络已连通，您可以关闭此窗口。';
+                    if (statusText) {
+                        statusText.textContent = '网络已连通，您可以关闭此窗口。';
+                        statusText.className = 'success-text';
+                    }
                 } else {
-                    if (statusText) statusText.textContent = '网络状态检测中，请稍候…';
+                    if (statusText) {
+                        statusText.textContent = '网络状态检测中，请稍候…';
+                        statusText.className = 'warning-text';
+                    }
                 }
             })
             .catch(function () {
-                if (statusText) statusText.textContent = '网络状态检测中，请稍候…';
+                if (statusText) {
+                    statusText.textContent = '网络状态检测中，请稍候…';
+                    statusText.className = '';
+                }
             });
     }
 

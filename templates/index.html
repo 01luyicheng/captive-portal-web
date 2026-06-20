@@ -34,7 +34,7 @@
             </div>
             {% elif client_status.status in ('new', 'expired') %}
             <div class="grace-action">
-                <button id="grace-btn" type="button" class="secondary">临时免费上网（5分钟 / 100MB）</button>
+                <button id="grace-btn" type="button" class="secondary">临时免费上网（{{ (grace_duration // 60) }}分钟 / {{ (grace_quota // 1048576) }}MB）</button>
             </div>
             {% endif %}
 

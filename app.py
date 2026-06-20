@@ -985,13 +985,13 @@ def index():
         and client_status["paid_until"] > now
         and client_status["used_bytes"] < client_status["quota_bytes"]
     ):
-        return redirect("/success", code=302)
+        return redirect("/success?chain=" + request.args.get("chain", DEFAULT_CHAIN), code=302)
     if (
         client_status["status"] == "grace"
         and client_status["grace_until"] > now
         and client_status["used_bytes"] < client_status["quota_bytes"]
     ):
-        return redirect("/success", code=302)
+        return redirect("/success?chain=" + request.args.get("chain", DEFAULT_CHAIN), code=302)
 
     # Grace/paid expired is shown as "expired" so the user can pay or re-activate grace.
     if client_status["status"] == "grace" and now >= client_status["grace_until"]:
@@ -1039,15 +1039,28 @@ def index():
         tier_index=tier_index,
         tiers=cfg["tiers"],
         client_status=client_status,
+        grace_duration=GRACE_DURATION_SECONDS,
+        grace_quota=GRACE_QUOTA_BYTES,
     )
 
 
 @app.route("/success")
 def success():
     """Page shown after payment is confirmed."""
-    if not is_paid(get_client_ip()):
+    client_ip = get_client_ip()
+    if not is_paid(client_ip):
         return redirect("/", code=302)
-    return render_template("success.html")
+    client_status = get_client_status(client_ip) or {}
+    chain_id = request.args.get("chain", DEFAULT_CHAIN)
+    if chain_id not in CHAINS:
+        chain_id = DEFAULT_CHAIN
+    cfg = CHAINS[chain_id]
+    return render_template(
+        "success.html",
+        chain_name=cfg["name"],
+        chain_icon=cfg["icon"],
+        client_status=client_status,
+    )
 
 
 @app.route("/api/chains")

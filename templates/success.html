@@ -13,6 +13,9 @@
         <div class="card success-card">
             <h1>支付成功</h1>
             <p class="success-icon">✅</p>
+            {% if chain_name %}
+            <p class="chain-detail">{{ chain_icon }} {{ chain_name }}</p>
+            {% endif %}
             <p class="lead">您现在可以关闭此页面并开始上网了。</p>
 
             <div class="usage-panel">
