@@ -761,11 +761,12 @@ def mark_paid(client_ip, tx_hash, chain_id, source, quota_bytes, derivation_inde
             UPDATE clients
             SET status = 'paid',
                 paid_until = MAX(paid_until, ?) + ?,
-                quota_bytes = quota_bytes + ?,
+                quota_bytes = CASE WHEN status = 'grace' THEN ? ELSE quota_bytes + ? END,
+                used_bytes = CASE WHEN status = 'grace' THEN 0 ELSE used_bytes END,
                 reset_ipset_at = ?
             WHERE client_ip = ?
             """,
-            (now, ACCESS_DURATION, quota_bytes, now, client_ip),
+            (now, ACCESS_DURATION, quota_bytes, quota_bytes, now, client_ip),
         )
         conn.execute("COMMIT")
     finally:

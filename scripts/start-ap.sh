@@ -34,6 +34,7 @@ ip link set "${AP_IF}" up
 
 echo "[*] Enabling IP forwarding..."
 sysctl -w net.ipv4.ip_forward=1 >/dev/null
+sysctl -w net.ipv6.conf.${AP_IF}.disable_ipv6=1 >/dev/null
 
 echo "[*] Saving current FORWARD default policy..."
 iptables -S FORWARD | awk '/^-P FORWARD/{print $3}' > /run/eth-wifi-forward-policy
@@ -59,6 +60,8 @@ ipset create paid_ips hash:ip counters timeout 0
 ipset create grace_ips hash:ip counters timeout 0
 
 echo "[*] Setting up iptables rules..."
+iptables -t nat -D PREROUTING -j ETH_WIFI_NAT 2>/dev/null || true
+iptables -t nat -D POSTROUTING -j ETH_WIFI_NAT 2>/dev/null || true
 iptables -N ETH_WIFI
 iptables -t nat -N ETH_WIFI_NAT
 
