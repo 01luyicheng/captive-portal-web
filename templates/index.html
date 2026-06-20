@@ -5,13 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <title>Wi-Fi 支付 portal</title>
+    <title>{{ portal_title }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
-        <h1>欢迎连接 Wi-Fi</h1>
-        <p class="lead">支付少量加密货币即可使用本无线网络。</p>
+        {% if portal_logo_url %}
+        <img src="{{ portal_logo_url }}" alt="Logo" class="portal-logo">
+        {% endif %}
+        <h1>{{ portal_welcome }}</h1>
+        <p class="lead">{{ portal_lead }}</p>
 
         <div class="card">
             <div class="chain-section">
@@ -44,12 +47,19 @@
             {% endif %}
 
             {% if eth_address %}
+            {% if price_error %}
+            <div class="price-error">
+                价格数据暂时不可用，请稍后刷新页面重试。如需支付，请参考页面底部的参考金额。
+            </div>
+            {% endif %}
             <div class="payment-info">
                 <div class="payment-amount">
                     <span class="amount-label">支付金额</span>
                     <span class="amount-value">{{ amount_token }} {{ token }}</span>
                     <span class="amount-fiat">≈ ${{ "%.2f"|format(amount_usd) }} USD</span>
+                    {% if token_price > 0 %}
                     <span class="amount-price">{{ token }} ≈ ${{ "%.2f"|format(token_price) }}</span>
+                    {% endif %}
                 </div>
             </div>
 
@@ -86,6 +96,12 @@
         {% if eth_address %}
         <footer>
             <p>收款地址：{{ eth_address }}</p>
+            {% if portal_footer %}
+            <p>{{ portal_footer }}</p>
+            {% endif %}
+            {% if portal_support_url %}
+            <p><a href="{{ portal_support_url }}" target="_blank" rel="noopener">技术支持</a></p>
+            {% endif %}
         </footer>
         {% endif %}
     </div>

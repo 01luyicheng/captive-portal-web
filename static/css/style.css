@@ -18,6 +18,12 @@ body {
     padding: 0 20px;
 }
 
+.portal-logo {
+    display: block;
+    max-width: 120px;
+    margin: 0 auto 16px;
+}
+
 h1 {
     text-align: center;
     margin-bottom: 0.5em;
@@ -283,6 +289,16 @@ button:disabled {
 .amount-price {
     font-size: 0.8em;
     color: #888;
+}
+
+.price-error {
+    margin: 12px 0;
+    padding: 12px;
+    background: #fff3cd;
+    color: #856404;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 0.9em;
 }
 
 footer {

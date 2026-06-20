@@ -70,6 +70,15 @@ except (ValueError, TypeError):
 DEFAULT_TOKEN = os.environ.get("DEFAULT_TOKEN", "ETH")
 FALLBACK_CURRENCY = os.environ.get("FALLBACK_CURRENCY", "usd")
 
+PORTAL_TITLE = os.environ.get("PORTAL_TITLE", "Wi-Fi 支付 portal")
+PORTAL_WELCOME = os.environ.get("PORTAL_WELCOME", "欢迎连接 Wi-Fi")
+PORTAL_LEAD = os.environ.get("PORTAL_LEAD", "支付少量加密货币即可使用本无线网络。")
+PORTAL_FOOTER = os.environ.get("PORTAL_FOOTER", "")
+PORTAL_SUPPORT_URL = os.environ.get("PORTAL_SUPPORT_URL", "")
+PORTAL_LOGO_URL = os.environ.get("PORTAL_LOGO_URL", "")
+QR_FILL_COLOR = os.environ.get("QR_FILL_COLOR", "black")
+QR_BACK_COLOR = os.environ.get("QR_BACK_COLOR", "white")
+
 _price_service = PriceService(cache_ttl=60)
 
 # DEV_MODE enables the "simulate payment" helper. Disable in production.
@@ -1117,6 +1126,10 @@ def index():
 
     prices = _price_service.get_prices(list(needed_symbols))
 
+    price_error = False
+    if not prices and any("amount_usd" in t for t in cfg.get("tiers", [])):
+        price_error = True
+
     amount_token, amount_unit, token_decimals = _price_service.convert_usd_to_token(
         amount_usd, token, prices
     )
@@ -1125,6 +1138,7 @@ def index():
         amount_token = "0"
         amount_unit = "0"
         token_decimals = 18
+        price_error = True
 
     token_price = prices.get(token, 0)
 
@@ -1145,6 +1159,7 @@ def index():
         "clientStatus": client_status["status"],
         "priceTolerance": PRICE_TOLERANCE_PERCENT,
         "priceLockMode": PRICE_LOCK_MODE,
+        "priceError": price_error,
         "pollInterval": int(os.environ.get("POLL_INTERVAL_MS", "3000")),
         "pollMaxInterval": int(os.environ.get("POLL_MAX_INTERVAL_MS", "30000")),
         "redirectDelay": int(os.environ.get("REDIRECT_DELAY_MS", "1000")),
@@ -1184,6 +1199,13 @@ def index():
         client_status=client_status,
         grace_duration=GRACE_DURATION_SECONDS,
         grace_quota=GRACE_QUOTA_BYTES,
+        portal_title=PORTAL_TITLE,
+        portal_welcome=PORTAL_WELCOME,
+        portal_lead=PORTAL_LEAD,
+        portal_footer=PORTAL_FOOTER,
+        portal_support_url=PORTAL_SUPPORT_URL,
+        portal_logo_url=PORTAL_LOGO_URL,
+        price_error=price_error,
     )
 
 
@@ -1222,20 +1244,41 @@ def health_check():
 
 @app.route("/api/chains")
 def list_chains():
-    """Return supported chains and their payment tiers."""
-    return jsonify(
-        {
-            chain_id: {
-                "name": c["name"],
-                "chain_id": c["chain_id"],
-                "block_time": c["block_time"],
-                "recommended": c["recommended"],
-                "icon": c["icon"],
-                "tiers": c["tiers"],
-            }
-            for chain_id, c in CHAINS.items()
+    """Return supported chains and their payment tiers with prices."""
+    needed_symbols = set()
+    for c in CHAINS.values():
+        for t in c.get("tiers", []):
+            if "amount_usd" in t:
+                for sym in c.get("tokens", {"ETH": {}}):
+                    needed_symbols.add(sym)
+    prices = _price_service.get_prices(list(needed_symbols)) if needed_symbols else {}
+
+    result = {}
+    for chain_id, c in CHAINS.items():
+        tokens = c.get("tokens", {"ETH": {"type": "native"}})
+        enriched_tiers = []
+        for t in c.get("tiers", []):
+            tier_data = {"quota_bytes": t["quota_bytes"], "index": len(enriched_tiers)}
+            if "amount_usd" in t:
+                tier_data["amount_usd"] = t["amount_usd"]
+                for sym in tokens:
+                    _, unit_val, dec = _price_service.convert_usd_to_token(t["amount_usd"], sym, prices)
+                    tier_data[f"amount_{sym.lower()}"] = unit_val or "0"
+                    tier_data[f"decimals_{sym.lower()}"] = dec
+            if "amount_wei" in t:
+                tier_data["amount_wei"] = t["amount_wei"]
+                tier_data["amount_eth"] = t.get("amount_eth", "0")
+            enriched_tiers.append(tier_data)
+        result[chain_id] = {
+            "name": c["name"],
+            "chain_id": c["chain_id"],
+            "block_time": c["block_time"],
+            "recommended": c["recommended"],
+            "icon": c["icon"],
+            "tokens": {sym: {"type": info.get("type", "native"), "address": info.get("address", "")} for sym, info in tokens.items()},
+            "tiers": enriched_tiers,
         }
-    )
+    return jsonify(result)
 
 
 @app.route("/api/status")
@@ -1320,7 +1363,7 @@ def qr_image():
     qr.add_data(uri)
     qr.make(fit=True)
 
-    img = qr.make_image(fill_color="black", back_color="white")
+    img = qr.make_image(fill_color=QR_FILL_COLOR, back_color=QR_BACK_COLOR)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
