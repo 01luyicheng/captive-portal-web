@@ -17,12 +17,17 @@
             <div class="chain-section">
                 <label for="chain-select">选择支付网络</label>
                 <select id="chain-select" class="chain-select">
-                    <!-- Populated by JS -->
+                </select>
+
+                <label for="token-select" class="tier-label">选择支付代币</label>
+                <select id="token-select" class="chain-select">
+                    {% for sym, info in tokens.items() %}
+                    <option value="{{ sym }}" {% if sym == token %}selected{% endif %}>{{ sym }}</option>
+                    {% endfor %}
                 </select>
 
                 <label for="tier-select" class="tier-label">选择流量档位</label>
                 <select id="tier-select" class="chain-select">
-                    <!-- Populated by JS -->
                 </select>
 
                 <div id="chain-info" class="chain-info"></div>
@@ -39,6 +44,15 @@
             {% endif %}
 
             {% if eth_address %}
+            <div class="payment-info">
+                <div class="payment-amount">
+                    <span class="amount-label">支付金额</span>
+                    <span class="amount-value">{{ amount_token }} {{ token }}</span>
+                    <span class="amount-fiat">≈ ${{ "%.2f"|format(amount_usd) }} USD</span>
+                    <span class="amount-price">{{ token }} ≈ ${{ "%.2f"|format(token_price) }}</span>
+                </div>
+            </div>
+
             <p class="address-label">请向以下唯一地址付款</p>
             <div class="address-box">
                 <code id="eth-address">{{ eth_address }}</code>
@@ -48,7 +62,7 @@
             <div id="qr-section">
                 <h2>扫码支付</h2>
                 <p>请使用钱包扫描下方二维码完成支付。</p>
-                <img id="qr-code" src="{{ url_for('qr_image', chain=chain_id, address=eth_address, amount_wei=amount_wei) }}" alt="Payment QR Code" class="qr-code">
+                <img id="qr-code" src="{{ url_for('qr_image', chain=chain_id, address=eth_address, token=token) }}" alt="Payment QR Code" class="qr-code">
 
                 <div class="wallet-links">
                     <a id="metamask-link" href="#" target="_blank" rel="noopener">在 MetaMask 中打开</a>

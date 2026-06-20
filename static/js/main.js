@@ -8,6 +8,7 @@
     const copyBtn = document.getElementById('copy-btn');
     const addressEl = document.getElementById('eth-address');
     const chainSelect = document.getElementById('chain-select');
+    const tokenSelect = document.getElementById('token-select');
     const tierSelect = document.getElementById('tier-select');
     const chainInfo = document.getElementById('chain-info');
     const qrCode = document.getElementById('qr-code');
@@ -36,6 +37,7 @@
     let chains = {};
     let currentChain = CONFIG ? CONFIG.currentChain : null;
     let currentTier = CONFIG ? CONFIG.tierIndex : 0;
+    let currentToken = CONFIG ? CONFIG.token : 'ETH';
 
     function showStatus(message, type) {
         if (!statusEl) return;
@@ -87,7 +89,7 @@
 
         qrCode.src = '/api/qr?chain=' + encodeURIComponent(currentChain) +
             '&address=' + encodeURIComponent(address) +
-            '&amount_wei=' + encodeURIComponent(tier.amount_wei) +
+            '&token=' + encodeURIComponent(currentToken) +
             '&t=' + Date.now();
         qrCode.onerror = function() {
             qrCode.alt = '二维码加载失败，请刷新页面';
@@ -96,21 +98,20 @@
 
         chainInfo.textContent = '';
         const nameEl = document.createElement('strong');
-        nameEl.textContent = cfg.icon + ' ' + cfg.name;
+        nameEl.textContent = cfg.name;
         chainInfo.appendChild(nameEl);
-        chainInfo.appendChild(document.createTextNode(' · 档位：支付 '));
-        const amountEl = document.createElement('strong');
-        amountEl.textContent = tier.amount_eth;
-        chainInfo.appendChild(amountEl);
+
+        const amountUsd = tier.amount_usd || 0;
+        chainInfo.appendChild(document.createTextNode(' · 支付 $' + amountUsd.toFixed(2) + ' USD'));
+
         chainInfo.appendChild(document.createTextNode(' · 获得 '));
         const quotaEl = document.createElement('strong');
         quotaEl.textContent = formatBytes(tier.quota_bytes);
         chainInfo.appendChild(quotaEl);
         chainInfo.appendChild(document.createTextNode(' · 预计 ' + (cfg.block_time * 3) + ' 秒确认'));
 
-        // MetaMask deep link (mobile wallet browsers)
         const mmUri = 'https://metamask.app.link/send/' + address +
-            '@' + cfg.chain_id + '?value=' + tier.amount_wei;
+            '@' + cfg.chain_id;
         metamaskLink.href = mmUri;
 
         showStatus('已切换到 ' + cfg.name + ' · ' + formatBytes(tier.quota_bytes) + ' 档位', 'info');
@@ -228,7 +229,8 @@
 
     function buildIndexUrl() {
         return '/?chain=' + encodeURIComponent(currentChain) +
-            '&tier=' + encodeURIComponent(currentTier);
+            '&tier=' + encodeURIComponent(currentTier) +
+            '&token=' + encodeURIComponent(currentToken);
     }
 
     function schedulePoll(delay) {
@@ -379,6 +381,16 @@
             const selected = parseInt(tierSelect.value, 10);
             if (!isNaN(selected) && selected !== currentTier) {
                 currentTier = selected;
+                window.location.href = buildIndexUrl();
+            }
+        });
+    }
+
+    if (tokenSelect) {
+        tokenSelect.addEventListener('change', function () {
+            const selected = tokenSelect.value;
+            if (selected !== currentToken) {
+                currentToken = selected;
                 window.location.href = buildIndexUrl();
             }
         });

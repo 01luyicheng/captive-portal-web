@@ -36,6 +36,8 @@ from flask import (
 )
 from mnemonic import Mnemonic
 
+from price_service import PriceService
+
 app = Flask(__name__)
 
 # ---------------------------------------------------------------------------
@@ -55,6 +57,14 @@ DB_BUSY_TIMEOUT = int(os.environ.get("DB_BUSY_TIMEOUT", "5000"))
 PENDING_CLEANUP_DAYS = int(os.environ.get("PENDING_CLEANUP_DAYS", "7"))
 PAYMENTS_CLEANUP_DAYS = int(os.environ.get("PAYMENTS_CLEANUP_DAYS", "90"))
 TX_TIMESTAMP_TOLERANCE = int(os.environ.get("TX_TIMESTAMP_TOLERANCE", "300"))
+
+PRICE_TOLERANCE_PERCENT = int(os.environ.get("PRICE_TOLERANCE_PERCENT", "20"))
+PRICE_LOCK_MODE = os.environ.get("PRICE_LOCK_MODE", "lock")
+PRICE_LOCK_DURATION = int(os.environ.get("PRICE_LOCK_DURATION", "900"))
+DEFAULT_TOKEN = os.environ.get("DEFAULT_TOKEN", "ETH")
+FALLBACK_CURRENCY = os.environ.get("FALLBACK_CURRENCY", "usd")
+
+_price_service = PriceService(cache_ttl=60)
 
 # DEV_MODE enables the "simulate payment" helper. Disable in production.
 DEV_MODE = os.environ.get("CAPTIVE_PORTAL_DEV", "false").lower() in ("1", "true", "yes")
@@ -129,11 +139,15 @@ _DEFAULT_CHAINS = {
         "blockscout_api": "https://base.blockscout.com/api/v2",
         "block_time": 2,
         "recommended": True,
-        "icon": "🔵",
+        "icon": "blue_circle",
+        "tokens": {
+            "ETH": {"type": "native"},
+            "USDC": {"type": "erc20", "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "decimals": 6},
+        },
         "tiers": [
-            {"amount_eth": "0.00001", "amount_wei": "10000000000000", "quota_bytes": 104857600},
-            {"amount_eth": "0.00003", "amount_wei": "30000000000000", "quota_bytes": 536870912},
-            {"amount_eth": "0.00005", "amount_wei": "50000000000000", "quota_bytes": 1073741824},
+            {"amount_usd": 0.50, "quota_bytes": 104857600},
+            {"amount_usd": 1.50, "quota_bytes": 536870912},
+            {"amount_usd": 2.50, "quota_bytes": 1073741824},
         ],
     },
     "polygon": {
@@ -836,7 +850,11 @@ def get_chain_config(chain_id):
 
 
 def _check_payment_items(items, tier_map, address, created_at, check_status=True):
-    """Scan Blockscout items for a matching payment. Returns tuple or None."""
+    """Scan Blockscout items for a matching payment. Returns tuple or None.
+
+    tier_map keys are now (token_symbol, amount_str) tuples.
+    For price tolerance, we check if the received amount is within PRICE_TOLERANCE_PERCENT of expected.
+    """
     for tx in items:
         to_addr = tx.get("to", {})
         if isinstance(to_addr, dict):
@@ -851,7 +869,6 @@ def _check_payment_items(items, tier_map, address, created_at, check_status=True
             continue
         if confirmations < REQUIRED_CONFIRMATIONS:
             continue
-        # Avoid treating very old transactions as new payments.
         tx_timestamp = tx.get("timestamp", "")
         if tx_timestamp:
             try:
@@ -864,9 +881,22 @@ def _check_payment_items(items, tier_map, address, created_at, check_status=True
             except (ValueError, OverflowError):
                 pass
         value = str(tx.get("value", "0"))
-        if value not in tier_map:
-            continue
-        return True, tx.get("hash"), tier_map[value], "Payment verified"
+        token_label = tx.get("token", {}).get("symbol", "ETH") if tx.get("token") else "ETH"
+
+        for (sym, expected_amount), quota in tier_map.items():
+            if sym.upper() != token_label.upper():
+                continue
+            try:
+                expected_val = int(expected_amount)
+                received_val = int(value)
+                if expected_val == 0:
+                    continue
+                tolerance = PRICE_TOLERANCE_PERCENT / 100.0
+                if abs(received_val - expected_val) / expected_val <= tolerance:
+                    return True, tx.get("hash"), quota, "Payment verified"
+            except (ValueError, TypeError):
+                if value == expected_amount:
+                    return True, tx.get("hash"), quota, "Payment verified"
     return None
 
 
@@ -880,8 +910,20 @@ def verify_payment_on_chain(address, chain_id, client_ip=None, created_at=None):
     cfg = get_chain_config(chain_id)
     api_base = cfg["blockscout_api"]
 
-    # Build a map from accepted wei value to the corresponding quota.
-    tier_map = {tier["amount_wei"]: tier["quota_bytes"] for tier in cfg["tiers"]}
+    tokens = cfg.get("tokens", {"ETH": {"type": "native"}})
+    needed_symbols = list(tokens.keys())
+    prices = _price_service.get_prices(needed_symbols)
+
+    tier_map = {}
+    for tier in cfg["tiers"]:
+        amount_usd = tier.get("amount_usd", 0)
+        if amount_usd > 0:
+            for sym, t_info in tokens.items():
+                _, unit_val, _ = _price_service.convert_usd_to_token(amount_usd, sym, prices)
+                if unit_val:
+                    tier_map[(sym, unit_val)] = tier["quota_bytes"]
+        if "amount_wei" in tier:
+            tier_map[("ETH", tier["amount_wei"])] = tier.get("quota_bytes", 0)
 
     now = int(time.time())
     if created_at is None:
@@ -1036,14 +1078,51 @@ def index():
 
     pending = get_or_create_pending_payment(client_ip, chain_id, tier_index)
 
+    token = request.args.get("token", DEFAULT_TOKEN).upper()
+    if token not in cfg.get("tokens", {"ETH": {}}):
+        token = DEFAULT_TOKEN
+
+    amount_usd = tier.get("amount_usd", 0)
+    tokens = cfg.get("tokens", {"ETH": {"type": "native"}})
+    token_info = tokens.get(token, {"type": "native"})
+
+    needed_symbols = set()
+    for t in cfg.get("tiers", []):
+        if "amount_usd" in t:
+            for sym in tokens:
+                needed_symbols.add(sym)
+    needed_symbols.add(token)
+
+    prices = _price_service.get_prices(list(needed_symbols))
+
+    amount_token, amount_unit, token_decimals = _price_service.convert_usd_to_token(
+        amount_usd, token, prices
+    )
+
+    if amount_unit is None:
+        amount_token = "0"
+        amount_unit = "0"
+        token_decimals = 18
+
+    token_price = prices.get(token, 0)
+
     config = {
         "ethAddress": pending["address"],
         "currentChain": chain_id,
         "chainId": cfg["chain_id"],
-        "amountWei": str(tier["amount_wei"]),
+        "amountWei": str(amount_unit),
+        "amountUsd": amount_usd,
+        "amountToken": amount_token,
+        "token": token,
+        "tokenPrice": token_price,
+        "tokenDecimals": token_decimals,
+        "tokenType": token_info.get("type", "native"),
+        "tokenAddress": token_info.get("address", ""),
         "quotaBytes": tier["quota_bytes"],
         "tierIndex": tier_index,
         "clientStatus": client_status["status"],
+        "priceTolerance": PRICE_TOLERANCE_PERCENT,
+        "priceLockMode": PRICE_LOCK_MODE,
         "pollInterval": int(os.environ.get("POLL_INTERVAL_MS", "3000")),
         "pollMaxInterval": int(os.environ.get("POLL_MAX_INTERVAL_MS", "30000")),
         "redirectDelay": int(os.environ.get("REDIRECT_DELAY_MS", "1000")),
@@ -1052,6 +1131,18 @@ def index():
         "fetchTimeout": int(os.environ.get("FETCH_TIMEOUT_MS", "20000")),
     }
 
+    enriched_tiers = []
+    for i, t in enumerate(cfg.get("tiers", [])):
+        t_usd = t.get("amount_usd", 0)
+        t_amount, t_unit, _ = _price_service.convert_usd_to_token(t_usd, token, prices)
+        enriched_tiers.append({
+            "amount_usd": t_usd,
+            "amount_token": t_amount or "0",
+            "amount_unit": str(t_unit or "0"),
+            "quota_bytes": t["quota_bytes"],
+            "index": i,
+        })
+
     return render_template(
         "index.html",
         eth_address=pending["address"],
@@ -1059,11 +1150,15 @@ def index():
         chain_id=chain_id,
         chain_name=cfg["name"],
         chain_chain_id=cfg["chain_id"],
-        amount_eth=tier["amount_eth"],
-        amount_wei=tier["amount_wei"],
+        amount_token=amount_token,
+        amount_unit=amount_unit,
+        amount_usd=amount_usd,
+        token=token,
+        token_price=token_price,
         quota_bytes=tier["quota_bytes"],
         tier_index=tier_index,
-        tiers=cfg["tiers"],
+        tiers=enriched_tiers,
+        tokens=tokens,
         client_status=client_status,
         grace_duration=GRACE_DURATION_SECONDS,
         grace_quota=GRACE_QUOTA_BYTES,
@@ -1155,10 +1250,10 @@ def qr_image():
     client_ip = get_client_ip()
     chain_id = request.args.get("chain", DEFAULT_CHAIN)
     address = request.args.get("address", "")
-    amount_wei = request.args.get("amount_wei")
+    amount_unit = request.args.get("amount_unit")
+    token = request.args.get("token", DEFAULT_TOKEN).upper()
     cfg = get_chain_config(chain_id)
 
-    # Verify the requested address belongs to an active pending payment of this client.
     now = int(time.time())
     with _db_conn() as conn:
         row = conn.execute(
@@ -1171,13 +1266,30 @@ def qr_image():
         ).fetchone()
     if not row:
         return make_response("Forbidden: address does not belong to active pending payment", 403)
-    if amount_wei is None:
-        amount_wei = row[0]
-    elif amount_wei != row[0]:
-        return make_response("Bad request: amount_wei does not match pending payment", 400)
 
-    # EIP-681 compatible URI with chain id
-    uri = f"ethereum:{address}@{cfg['chain_id']}?value={amount_wei}"
+    tokens = cfg.get("tokens", {"ETH": {"type": "native"}})
+    token_info = tokens.get(token, {"type": "native"})
+
+    needed_symbols = list(tokens.keys())
+    prices = _price_service.get_prices(needed_symbols)
+
+    tier_index = row[1]
+    tier = cfg["tiers"][tier_index] if tier_index < len(cfg["tiers"]) else cfg["tiers"][0]
+    amount_usd = tier.get("amount_usd", 0)
+
+    amount_token_str, amount_unit_val, _ = _price_service.convert_usd_to_token(amount_usd, token, prices)
+
+    if amount_unit_val is None:
+        amount_unit_val = row[0]
+
+    if token_info.get("type") == "erc20":
+        token_addr = token_info.get("address", "")
+        decimals = token_info.get("decimals", 6)
+        erc20_amount = int(amount_unit_val) if amount_unit_val else 0
+        uri = f"ethereum:{token_addr}@{cfg['chain_id']}?transfer={address}&uint256={erc20_amount}"
+    else:
+        uri = f"ethereum:{address}@{cfg['chain_id']}?value={amount_unit_val}"
+
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,

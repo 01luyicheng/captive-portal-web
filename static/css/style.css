@@ -250,6 +250,41 @@ button:disabled {
     margin: 0.2em 0;
 }
 
+.payment-info {
+    margin: 16px 0;
+    padding: 12px;
+    background: #f0f7ff;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.payment-amount {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.amount-label {
+    font-size: 0.85em;
+    color: #666;
+}
+
+.amount-value {
+    font-size: 1.4em;
+    font-weight: 700;
+    color: #0366d6;
+}
+
+.amount-fiat {
+    font-size: 0.95em;
+    color: #555;
+}
+
+.amount-price {
+    font-size: 0.8em;
+    color: #888;
+}
+
 footer {
     text-align: center;
     margin-top: 24px;
