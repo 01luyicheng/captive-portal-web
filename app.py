@@ -736,7 +736,7 @@ def get_or_create_pending_payment(client_ip, chain_id, tier_index=0, token=None)
                 return existing
             raise
     finally:
-        conn.isolation_level = ""
+        conn.isolation_level = None
         conn.close()
 
 
@@ -895,7 +895,7 @@ def mark_paid(client_ip, tx_hash, chain_id, source, quota_bytes, derivation_inde
         )
         conn.execute("COMMIT")
     finally:
-        conn.isolation_level = ""
+        conn.isolation_level = None
         conn.close()
 
 
@@ -1148,6 +1148,7 @@ def index():
         return redirect("/success?chain=" + request.args.get("chain", DEFAULT_CHAIN), code=302)
 
     # Grace/paid expired is shown as "expired" so the user can pay or re-activate grace.
+    # sync-auth.sh will update ipset on its next cycle to revoke access.
     if client_status["status"] == "grace" and now >= client_status["grace_until"]:
         client_status["status"] = "expired"
         with _db_conn() as conn:
@@ -1155,7 +1156,6 @@ def index():
                 "UPDATE clients SET status = 'expired' WHERE client_ip = ?",
                 (client_ip,),
             )
-        _set_speed_limit(client_ip, full_speed=False)
     if client_status["status"] == "paid" and (
         now >= client_status["paid_until"]
         or client_status["used_bytes"] >= client_status["quota_bytes"]
@@ -1166,7 +1166,6 @@ def index():
                 "UPDATE clients SET status = 'expired' WHERE client_ip = ?",
                 (client_ip,),
             )
-        _set_speed_limit(client_ip, full_speed=False)
 
     chain_id = request.args.get("chain", DEFAULT_CHAIN)
     if chain_id not in CHAINS:
