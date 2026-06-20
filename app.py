@@ -27,23 +27,21 @@ from flask import (
 )
 
 from config import (
-    REQUIRED_CONFIRMATIONS, ACCESS_DURATION, PAYMENT_PENDING_DURATION,
     GRACE_DURATION_SECONDS, GRACE_QUOTA_BYTES, GRACE_MAX_PER_24H, GRACE_COOLDOWN_SECONDS,
-    DB_BUSY_TIMEOUT, PENDING_CLEANUP_DAYS, PAYMENTS_CLEANUP_DAYS, TX_TIMESTAMP_TOLERANCE,
-    PRICE_TOLERANCE_PERCENT, STABLECOIN_TOLERANCE_PERCENT, PRICE_LOCK_MODE, PRICE_LOCK_DURATION,
-    DEFAULT_TOKEN, FALLBACK_CURRENCY,
+    PRICE_TOLERANCE_PERCENT, PRICE_LOCK_MODE, PRICE_LOCK_DURATION,
+    DEFAULT_TOKEN,
     PORTAL_TITLE, PORTAL_WELCOME, PORTAL_LEAD, PORTAL_FOOTER, PORTAL_SUPPORT_URL, PORTAL_LOGO_URL,
     QR_FILL_COLOR, QR_BACK_COLOR,
-    DEV_MODE, DB_PATH, CAPTIVE_DEV_TOKEN, TRUSTED_PROXIES,
+    DEV_MODE, CAPTIVE_DEV_TOKEN, TRUSTED_PROXIES,
     MAX_ACCESS_DURATION, MAX_QUOTA_BYTES,
-    log_resolved_config, _env_int,
+    _env_int,
 )
-from chains import CHAINS, DEFAULT_CHAIN, get_chain_config, needed_token_symbols
+from chains import CHAINS, DEFAULT_CHAIN, get_chain_config
 from wallet import derive_address
 from db import (
-    init_db, _db_conn, _next_derivation_index, _ensure_client_row,
-    get_client_status, update_client_status,
-    get_active_pending_payment, get_active_pending_payments,
+    init_db, _db_conn,
+    get_client_status,
+    get_active_pending_payments,
     get_or_create_pending_payment, is_paid, activate_grace, mark_paid, revoke,
 )
 from verification import verify_payment_on_chain
