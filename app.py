@@ -43,20 +43,30 @@ app = Flask(__name__)
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-REQUIRED_CONFIRMATIONS = int(os.environ.get("REQUIRED_CONFIRMATIONS", "3"))
-ACCESS_DURATION = int(os.environ.get("ACCESS_DURATION", "86400"))
-PAYMENT_PENDING_DURATION = int(os.environ.get("PAYMENT_PENDING_DURATION", "3600"))
+def _env_int(key, default, min_val=None, max_val=None):
+    try:
+        val = int(os.environ.get(key, str(default)))
+    except (ValueError, TypeError):
+        val = default
+    if min_val is not None:
+        val = max(min_val, val)
+    if max_val is not None:
+        val = min(max_val, val)
+    return val
 
-# 宽限期配置：用户点击按钮后获得短暂免费上网权限。
-GRACE_DURATION_SECONDS = int(os.environ.get("GRACE_DURATION_SECONDS", "300"))
-GRACE_QUOTA_BYTES = int(os.environ.get("GRACE_QUOTA_BYTES", "104857600"))
-GRACE_MAX_PER_24H = int(os.environ.get("GRACE_MAX_PER_24H", "1"))
-GRACE_COOLDOWN_SECONDS = int(os.environ.get("GRACE_COOLDOWN_SECONDS", "3600"))
+REQUIRED_CONFIRMATIONS = _env_int("REQUIRED_CONFIRMATIONS", 3, min_val=1)
+ACCESS_DURATION = _env_int("ACCESS_DURATION", 86400, min_val=60)
+PAYMENT_PENDING_DURATION = _env_int("PAYMENT_PENDING_DURATION", 3600, min_val=60)
 
-DB_BUSY_TIMEOUT = int(os.environ.get("DB_BUSY_TIMEOUT", "5000"))
-PENDING_CLEANUP_DAYS = int(os.environ.get("PENDING_CLEANUP_DAYS", "7"))
-PAYMENTS_CLEANUP_DAYS = int(os.environ.get("PAYMENTS_CLEANUP_DAYS", "90"))
-TX_TIMESTAMP_TOLERANCE = int(os.environ.get("TX_TIMESTAMP_TOLERANCE", "300"))
+GRACE_DURATION_SECONDS = _env_int("GRACE_DURATION_SECONDS", 300, min_val=10)
+GRACE_QUOTA_BYTES = _env_int("GRACE_QUOTA_BYTES", 104857600, min_val=1048576)
+GRACE_MAX_PER_24H = _env_int("GRACE_MAX_PER_24H", 1, min_val=0)
+GRACE_COOLDOWN_SECONDS = _env_int("GRACE_COOLDOWN_SECONDS", 3600, min_val=0)
+
+DB_BUSY_TIMEOUT = _env_int("DB_BUSY_TIMEOUT", 5000, min_val=1000)
+PENDING_CLEANUP_DAYS = _env_int("PENDING_CLEANUP_DAYS", 7, min_val=1)
+PAYMENTS_CLEANUP_DAYS = _env_int("PAYMENTS_CLEANUP_DAYS", 90, min_val=1)
+TX_TIMESTAMP_TOLERANCE = _env_int("TX_TIMESTAMP_TOLERANCE", 300, min_val=0)
 
 try:
     PRICE_TOLERANCE_PERCENT = max(0, min(50, int(os.environ.get("PRICE_TOLERANCE_PERCENT", "20"))))
@@ -287,6 +297,8 @@ def _load_chains():
 CHAINS = _load_chains()
 
 DEFAULT_CHAIN = os.environ.get("DEFAULT_CHAIN", "base")
+if DEFAULT_CHAIN not in CHAINS:
+    DEFAULT_CHAIN = next(iter(CHAINS.keys()))
 
 # ---------------------------------------------------------------------------
 # HD wallet setup
@@ -623,7 +635,7 @@ def get_active_pending_payments(client_ip, chain_id):
     ]
 
 
-def get_or_create_pending_payment(client_ip, chain_id, tier_index=0):
+def get_or_create_pending_payment(client_ip, chain_id, tier_index=0, token=None):
     """Reuse an active pending payment or create a new derived address record."""
     cfg = CHAINS[chain_id]
     tiers = cfg["tiers"]
@@ -631,7 +643,9 @@ def get_or_create_pending_payment(client_ip, chain_id, tier_index=0):
         tier_index = 0
     tier = tiers[tier_index]
 
-    token = request.args.get("token", DEFAULT_TOKEN).upper() if request else DEFAULT_TOKEN
+    if token is None:
+        token = DEFAULT_TOKEN
+    token = token.upper()
     tokens = cfg.get("tokens", {"ETH": {"type": "native"}})
     if token not in tokens:
         token = DEFAULT_TOKEN
@@ -923,7 +937,7 @@ def get_client_ip():
 # ---------------------------------------------------------------------------
 def get_chain_config(chain_id):
     """Return chain config or default chain if unknown."""
-    return CHAINS.get(chain_id, CHAINS[DEFAULT_CHAIN])
+    return CHAINS.get(chain_id, CHAINS.get(DEFAULT_CHAIN, next(iter(CHAINS.values()))))
 
 
 def _check_payment_items(items, tier_map, address, created_at, check_status=True):
@@ -1153,14 +1167,14 @@ def index():
     tier_index = _selected_tier_index(cfg)
     tier = cfg["tiers"][tier_index]
 
-    pending = get_or_create_pending_payment(client_ip, chain_id, tier_index)
-
     token = request.args.get("token", DEFAULT_TOKEN).upper()
-    if token not in cfg.get("tokens", {"ETH": {}}):
+    tokens = cfg.get("tokens", {"ETH": {}})
+    if token not in tokens:
         token = DEFAULT_TOKEN
 
+    pending = get_or_create_pending_payment(client_ip, chain_id, tier_index, token=token)
+
     amount_usd = tier.get("amount_usd", 0)
-    tokens = cfg.get("tokens", {"ETH": {"type": "native"}})
     token_info = tokens.get(token, {"type": "native"})
 
     needed_symbols = set()

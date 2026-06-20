@@ -111,7 +111,7 @@
         chainInfo.appendChild(document.createTextNode(' · 预计 ' + (cfg.block_time * 3) + ' 秒确认'));
 
         const mmUri = 'https://metamask.app.link/send/' + address +
-            '@' + cfg.chain_id;
+            '@' + cfg.chain_id + '?value=' + (CONFIG.amountWei || '0');
         metamaskLink.href = mmUri;
 
         showStatus('已切换到 ' + cfg.name + ' · ' + formatBytes(tier.quota_bytes) + ' 档位', 'info');
@@ -125,7 +125,8 @@
         cfg.tiers.forEach(function (tier, idx) {
             const option = document.createElement('option');
             option.value = idx;
-            option.textContent = formatBytes(tier.quota_bytes) + ' · ' + tier.amount_eth;
+            const label = tier.amount_usd ? '$' + tier.amount_usd.toFixed(2) + ' USD' : (tier.amount_eth || '');
+            option.textContent = formatBytes(tier.quota_bytes) + ' · ' + label;
             tierSelect.appendChild(option);
         });
         if (currentTier >= cfg.tiers.length) {
@@ -191,7 +192,7 @@
                 params: [{
                     from: accounts[0],
                     to: CONFIG.ethAddress,
-                    value: '0x' + BigInt(tier.amount_wei).toString(16),
+                    value: '0x' + BigInt(CONFIG.amountWei || '0').toString(16),
                     chainId: '0x' + CONFIG.chainId.toString(16)
                 }]
             });
