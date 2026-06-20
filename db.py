@@ -20,7 +20,7 @@ from config import (
     GRACE_COOLDOWN_SECONDS,
     DEFAULT_TOKEN,
 )
-from chains import CHAINS, DEFAULT_CHAIN
+from chains import CHAINS
 
 logger = logging.getLogger(__name__)
 
@@ -339,7 +339,7 @@ def get_active_pending_payments(client_ip, chain_id):
 
 def get_or_create_pending_payment(client_ip, chain_id, tier_index=0, token=None, price_service=None):
     """Reuse an active pending payment or create a new derived address record."""
-    from chains import get_chain_config, needed_token_symbols
+    from chains import needed_token_symbols
     from wallet import derive_address
 
     cfg = CHAINS[chain_id]

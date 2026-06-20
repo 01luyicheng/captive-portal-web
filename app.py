@@ -27,22 +27,18 @@ from flask import (
 )
 
 from config import (
-    GRACE_DURATION_SECONDS, GRACE_QUOTA_BYTES, GRACE_MAX_PER_24H, GRACE_COOLDOWN_SECONDS,
-    PRICE_TOLERANCE_PERCENT, PRICE_LOCK_MODE, PRICE_LOCK_DURATION,
-    DEFAULT_TOKEN,
+    GRACE_DURATION_SECONDS, GRACE_QUOTA_BYTES, PRICE_TOLERANCE_PERCENT, PRICE_LOCK_MODE, DEFAULT_TOKEN,
     PORTAL_TITLE, PORTAL_WELCOME, PORTAL_LEAD, PORTAL_FOOTER, PORTAL_SUPPORT_URL, PORTAL_LOGO_URL,
     QR_FILL_COLOR, QR_BACK_COLOR,
     DEV_MODE, CAPTIVE_DEV_TOKEN, TRUSTED_PROXIES,
-    MAX_ACCESS_DURATION, MAX_QUOTA_BYTES,
     _env_int,
 )
 from chains import CHAINS, DEFAULT_CHAIN, get_chain_config
-from wallet import derive_address
 from db import (
     init_db, _db_conn,
     get_client_status,
     get_active_pending_payments,
-    get_or_create_pending_payment, is_paid, activate_grace, mark_paid, revoke,
+    get_or_create_pending_payment, is_paid, activate_grace, mark_paid,
 )
 from verification import verify_payment_on_chain
 from price_service import PriceService
@@ -389,7 +385,6 @@ def qr_image():
     client_ip = get_client_ip()
     chain_id = request.args.get("chain", DEFAULT_CHAIN)
     address = request.args.get("address", "")
-    amount_unit = request.args.get("amount_unit")
     token = request.args.get("token", DEFAULT_TOKEN).upper()
     cfg = get_chain_config(chain_id)
 
