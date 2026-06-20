@@ -200,8 +200,10 @@ def index():
     if not prices and any("amount_usd" in t for t in cfg.get("tiers", [])):
         price_error = True
 
+    token_info = tokens.get(token, {"type": "native"})
+    default_decimals = token_info.get("decimals", 18)
     amount_token, amount_unit, token_decimals = _price_service.convert_usd_to_token(
-        amount_usd, token, prices
+        amount_usd, token, prices, decimals=default_decimals
     )
 
     if amount_unit is None:
@@ -241,7 +243,7 @@ def index():
     enriched_tiers = []
     for i, t in enumerate(cfg.get("tiers", [])):
         t_usd = t.get("amount_usd", 0)
-        t_amount, t_unit, _ = _price_service.convert_usd_to_token(t_usd, token, prices)
+        t_amount, t_unit, _ = _price_service.convert_usd_to_token(t_usd, token, prices, decimals=default_decimals)
         enriched_tiers.append({
             "amount_usd": t_usd,
             "amount_token": t_amount or "0",
@@ -332,7 +334,9 @@ def list_chains():
             if "amount_usd" in t:
                 tier_data["amount_usd"] = t["amount_usd"]
                 for sym in tokens:
-                    _, unit_val, dec = _price_service.convert_usd_to_token(t["amount_usd"], sym, prices)
+                    sym_info = tokens[sym]
+                    sym_decimals = sym_info.get("decimals", 18)
+                    _, unit_val, dec = _price_service.convert_usd_to_token(t["amount_usd"], sym, prices, decimals=sym_decimals)
                     tier_data[f"amount_{sym.lower()}"] = unit_val or "0"
                     tier_data[f"decimals_{sym.lower()}"] = dec
             if "amount_wei" in t:
@@ -412,7 +416,8 @@ def qr_image():
     tier = cfg["tiers"][tier_index] if tier_index < len(cfg["tiers"]) else cfg["tiers"][0]
     amount_usd = tier.get("amount_usd", 0)
 
-    amount_token_str, amount_unit_val, _ = _price_service.convert_usd_to_token(amount_usd, token, prices)
+    qr_decimals = token_info.get("decimals", 18)
+    amount_token_str, amount_unit_val, _ = _price_service.convert_usd_to_token(amount_usd, token, prices, decimals=qr_decimals)
 
     if amount_unit_val is None:
         amount_unit_val = row[0]

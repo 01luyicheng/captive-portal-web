@@ -134,6 +134,10 @@ def _validate_single_chain(chain_id, chain_cfg):
             return False
         if "amount_usd" not in tier and "amount_wei" not in tier:
             return False
+        if "amount_usd" in tier and (not isinstance(tier["amount_usd"], (int, float)) or tier["amount_usd"] <= 0):
+            return False
+        if "amount_wei" in tier and (not isinstance(tier["amount_wei"], (int, float)) or tier["amount_wei"] <= 0):
+            return False
     if not _BLOCKSCOUT_URL_PATTERN.match(chain_cfg.get('blockscout_api', '')):
         return False
     return True
