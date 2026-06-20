@@ -1220,12 +1220,12 @@ def index():
         "priceTolerance": PRICE_TOLERANCE_PERCENT,
         "priceLockMode": PRICE_LOCK_MODE,
         "priceError": price_error,
-        "pollInterval": int(os.environ.get("POLL_INTERVAL_MS", "3000")),
-        "pollMaxInterval": int(os.environ.get("POLL_MAX_INTERVAL_MS", "30000")),
-        "redirectDelay": int(os.environ.get("REDIRECT_DELAY_MS", "1000")),
-        "lowBytesThreshold": int(os.environ.get("LOW_BYTES_THRESHOLD", "52428800")),
-        "lowTimeThreshold": int(os.environ.get("LOW_TIME_THRESHOLD", "600")),
-        "fetchTimeout": int(os.environ.get("FETCH_TIMEOUT_MS", "20000")),
+        "pollInterval": _env_int("POLL_INTERVAL_MS", 3000, min_val=500),
+        "pollMaxInterval": _env_int("POLL_MAX_INTERVAL_MS", 30000, min_val=1000),
+        "redirectDelay": _env_int("REDIRECT_DELAY_MS", 1000, min_val=100),
+        "lowBytesThreshold": _env_int("LOW_BYTES_THRESHOLD", 52428800, min_val=1048576),
+        "lowTimeThreshold": _env_int("LOW_TIME_THRESHOLD", 600, min_val=10),
+        "fetchTimeout": _env_int("FETCH_TIMEOUT_MS", 20000, min_val=1000),
     }
 
     enriched_tiers = []
@@ -1285,8 +1285,8 @@ def success():
         chain_name=cfg["name"],
         chain_icon=cfg["icon"],
         client_status=client_status,
-        status_poll_interval=int(os.environ.get("STATUS_POLL_INTERVAL_MS", "3000")),
-        network_check_interval=int(os.environ.get("NETWORK_CHECK_INTERVAL_MS", "3000")),
+        status_poll_interval=_env_int("STATUS_POLL_INTERVAL_MS", 3000, min_val=500),
+        network_check_interval=_env_int("NETWORK_CHECK_INTERVAL_MS", 3000, min_val=500),
     )
 
 
@@ -1555,5 +1555,5 @@ if __name__ == "__main__":
     # interactive Werkzeug debugger (which allows remote code execution) is never on.
     default_host = "127.0.0.1" if DEV_MODE else "0.0.0.0"
     host = os.environ.get("FLASK_HOST", default_host)
-    port = int(os.environ.get("FLASK_PORT", "5000"))
+    port = _env_int("FLASK_PORT", 5000, min_val=1, max_val=65535)
     app.run(host=host, port=port, debug=False, use_reloader=DEV_MODE)
