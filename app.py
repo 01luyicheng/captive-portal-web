@@ -58,9 +58,15 @@ PENDING_CLEANUP_DAYS = int(os.environ.get("PENDING_CLEANUP_DAYS", "7"))
 PAYMENTS_CLEANUP_DAYS = int(os.environ.get("PAYMENTS_CLEANUP_DAYS", "90"))
 TX_TIMESTAMP_TOLERANCE = int(os.environ.get("TX_TIMESTAMP_TOLERANCE", "300"))
 
-PRICE_TOLERANCE_PERCENT = int(os.environ.get("PRICE_TOLERANCE_PERCENT", "20"))
+try:
+    PRICE_TOLERANCE_PERCENT = max(0, min(50, int(os.environ.get("PRICE_TOLERANCE_PERCENT", "20"))))
+except (ValueError, TypeError):
+    PRICE_TOLERANCE_PERCENT = 20
 PRICE_LOCK_MODE = os.environ.get("PRICE_LOCK_MODE", "lock")
-PRICE_LOCK_DURATION = int(os.environ.get("PRICE_LOCK_DURATION", "900"))
+try:
+    PRICE_LOCK_DURATION = max(60, int(os.environ.get("PRICE_LOCK_DURATION", "900")))
+except (ValueError, TypeError):
+    PRICE_LOCK_DURATION = 900
 DEFAULT_TOKEN = os.environ.get("DEFAULT_TOKEN", "ETH")
 FALLBACK_CURRENCY = os.environ.get("FALLBACK_CURRENCY", "usd")
 
@@ -223,8 +229,24 @@ _CHAINS_CONFIG_PATH = os.environ.get("CAPTIVE_CHAINS_CONFIG", "/etc/captive-port
 def _load_chains():
     try:
         with open(_CHAINS_CONFIG_PATH) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return _DEFAULT_CHAINS
+        for chain_id, chain_cfg in data.items():
+            if not isinstance(chain_cfg, dict):
+                return _DEFAULT_CHAINS
+            for key in ("name", "chain_id", "blockscout_api", "tiers"):
+                if key not in chain_cfg:
+                    return _DEFAULT_CHAINS
+            if not isinstance(chain_cfg["tiers"], list) or not chain_cfg["tiers"]:
+                return _DEFAULT_CHAINS
+            for tier in chain_cfg["tiers"]:
+                if not isinstance(tier, dict) or "quota_bytes" not in tier:
+                    return _DEFAULT_CHAINS
+                if "amount_usd" not in tier and "amount_wei" not in tier:
+                    return _DEFAULT_CHAINS
+        return data
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, TypeError):
         return _DEFAULT_CHAINS
 
 
@@ -1284,9 +1306,8 @@ def qr_image():
 
     if token_info.get("type") == "erc20":
         token_addr = token_info.get("address", "")
-        decimals = token_info.get("decimals", 6)
         erc20_amount = int(amount_unit_val) if amount_unit_val else 0
-        uri = f"ethereum:{token_addr}@{cfg['chain_id']}?transfer={address}&uint256={erc20_amount}"
+        uri = f"ethereum:{token_addr}@{cfg['chain_id']}?function=transfer(address,uint256)&address={address}&uint256={erc20_amount}"
     else:
         uri = f"ethereum:{address}@{cfg['chain_id']}?value={amount_unit_val}"
 

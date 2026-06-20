@@ -4,11 +4,14 @@ Fetches prices from CoinGecko (primary) and CoinMarketCap (fallback).
 Caches results to respect rate limits.
 """
 
+import logging
 import os
 import threading
 import time
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 COINGECKO_API = "https://api.coingecko.com/api/v3"
 COINMARKETCAP_API = "https://pro-api.coinmarketcap.com/v1"
@@ -46,7 +49,6 @@ class PriceService:
         self.cmc_api_key = cmc_api_key or os.environ.get("COINMARKETCAP_API_KEY", "")
         self._cache = {}
         self._lock = threading.Lock()
-        self._last_fetch = 0
 
     def get_prices(self, symbols, vs_currency="usd"):
         """Get prices for a list of token symbols in USD.
@@ -68,6 +70,7 @@ class PriceService:
             prices = self._fetch_coinmarketcap(symbols, vs_currency)
 
         if prices:
+            now = time.time()
             with self._lock:
                 self._cache[cache_key] = (now, prices)
 
@@ -102,7 +105,8 @@ class PriceService:
                     prices[symbol] = float(data[cg_id][vs_currency])
 
             return prices
-        except Exception:
+        except requests.RequestException as e:
+            logger.warning("CoinGecko API error: %s", e)
             return {}
 
     def _fetch_coinmarketcap(self, symbols, vs_currency):
@@ -137,7 +141,8 @@ class PriceService:
                         prices[symbol] = float(quote[vs_currency.upper()]["price"])
 
             return prices
-        except Exception:
+        except requests.RequestException as e:
+            logger.warning("CoinMarketCap API error: %s", e)
             return {}
 
     def convert_usd_to_token(self, usd_amount, token_symbol, prices):
@@ -152,27 +157,13 @@ class PriceService:
         if not price or price <= 0:
             return None, None, None
 
-        if token == "ETH":
-            token_amount = usd_amount / price
-            wei = int(round(token_amount * 10**18))
-            return f"{token_amount:.10f}", str(wei), 18
-        elif token == "MATIC":
-            token_amount = usd_amount / price
-            wei = int(round(token_amount * 10**18))
-            return f"{token_amount:.10f}", str(wei), 18
-        elif token == "BNB":
-            token_amount = usd_amount / price
-            wei = int(round(token_amount * 10**18))
-            return f"{token_amount:.10f}", str(wei), 18
-        elif token == "ARB":
-            token_amount = usd_amount / price
-            wei = int(round(token_amount * 10**18))
-            return f"{token_amount:.10f}", str(wei), 18
-        elif token == "OP":
-            token_amount = usd_amount / price
-            wei = int(round(token_amount * 10**18))
-            return f"{token_amount:.10f}", str(wei), 18
+        NATIVE_TOKENS = {"ETH", "MATIC", "BNB", "ARB", "OP"}
+        token_upper = token.upper()
+        if token_upper in NATIVE_TOKENS:
+            decimals = 18
         else:
-            token_amount = usd_amount / price
-            wei = int(round(token_amount * 10**6))
-            return f"{token_amount:.6f}", str(wei), 6
+            decimals = 6
+        token_amount = usd_amount / price
+        smallest_unit = int(round(token_amount * 10**decimals))
+        fmt = f".{decimals}f"
+        return f"{token_amount:{fmt}}", str(smallest_unit), decimals
