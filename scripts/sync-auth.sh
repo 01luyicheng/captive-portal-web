@@ -103,7 +103,7 @@ sync_once() {
     # Update counters using a parameterized Python script to avoid SQL injection.
     for ip in "${!ipset_bytes[@]}"; do
         bytes=${ipset_bytes[$ip]}
-        python3 -c "import sqlite3,sys; conn=sqlite3.connect(sys.argv[1]); conn.execute('PRAGMA busy_timeout=5000'); conn.execute('UPDATE clients SET used_bytes=used_bytes+MAX(0,?-last_ipset_bytes), last_ipset_bytes=? WHERE client_ip=?', (sys.argv[2], sys.argv[2], sys.argv[3])); conn.commit(); conn.close()" "${DB_PATH}" "${bytes}" "${ip}"
+        python3 -c "import sqlite3,sys; cur_bytes=int(sys.argv[2]); conn=sqlite3.connect(sys.argv[1]); conn.execute('PRAGMA busy_timeout=5000'); row=conn.execute('SELECT last_ipset_bytes FROM clients WHERE client_ip=?',(sys.argv[3],)).fetchone(); last=row[0] if row else 0; delta=cur_bytes if cur_bytes<last else max(0,cur_bytes-last); conn.execute('UPDATE clients SET used_bytes=used_bytes+?, last_ipset_bytes=? WHERE client_ip=?',(delta,cur_bytes,sys.argv[3])); conn.commit(); conn.close()" "${DB_PATH}" "${bytes}" "${ip}"
     done
 
     # ------------------------------------------------------------------
