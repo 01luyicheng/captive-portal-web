@@ -300,6 +300,7 @@ def success():
 
 @app.route("/api/health")
 def health_check():
+    from db import check_db_integrity
     checks = {}
     try:
         with _db_conn() as conn:
@@ -307,7 +308,16 @@ def health_check():
         checks["database"] = "ok"
     except Exception:
         checks["database"] = "error"
-    return jsonify(checks), 200 if all(v == "ok" for v in checks.values()) else 503
+    ok, msg = check_db_integrity()
+    checks["integrity"] = "ok" if ok else f"error: {msg}"
+    try:
+        with _db_conn() as conn:
+            row = conn.execute("SELECT COUNT(*) FROM clients WHERE status IN ('paid','grace')").fetchone()
+            checks["active_clients"] = row[0]
+    except Exception:
+        checks["active_clients"] = -1
+    status = 200 if checks.get("database") == "ok" and checks.get("integrity") == "ok" else 503
+    return jsonify(checks), status
 
 
 @app.route("/api/chains")

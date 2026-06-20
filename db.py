@@ -97,6 +97,18 @@ def _migrate_payments_unique_constraint(conn):
         raise
 
 
+def check_db_integrity():
+    """Check database integrity. Returns (ok, message)."""
+    try:
+        with _db_conn() as conn:
+            result = conn.execute("PRAGMA integrity_check").fetchone()
+            if result[0] == "ok":
+                return True, "ok"
+            return False, result[0]
+    except Exception as e:
+        return False, str(e)
+
+
 def init_db():
     """Create the payments tables if they do not exist."""
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
