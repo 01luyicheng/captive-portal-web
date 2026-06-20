@@ -16,6 +16,7 @@ systemctl stop hostapd 2>/dev/null || true
 systemctl stop dnsmasq 2>/dev/null || true
 systemctl mask hostapd 2>/dev/null || true
 systemctl disable --now dnsmasq 2>/dev/null || true
+systemctl mask dnsmasq 2>/dev/null || true
 
 echo "[*] Installing hostapd config..."
 cp "${SCRIPT_DIR}/hostapd.conf" /etc/hostapd/eth-wifi.conf
@@ -118,6 +119,7 @@ echo "[*] Reloading systemd and enabling services..."
 systemctl daemon-reload
 systemctl enable captive-portal.service sync-auth.service
 systemctl start captive-portal.service
+systemctl start sync-auth.service
 
 echo ""
 echo "[*] Setup complete. Next steps:"

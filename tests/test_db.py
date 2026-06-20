@@ -392,5 +392,96 @@ class _MockPriceService:
         return f"{amount:.{decimals}f}", str(smallest), decimals
 
 
+class TestMigratePaymentsUniqueConstraint(unittest.TestCase):
+    """Tests for _migrate_payments_unique_constraint()."""
+
+    def setUp(self):
+        self._db_path = _setup_temp_db()
+        db_mod._db_conn().execute(
+            "PRAGMA journal_mode=WAL"
+        )
+
+    def tearDown(self):
+        os.unlink(self._db_path)
+
+    def _create_old_schema(self):
+        conn = db_mod._db_conn()
+        conn.execute(
+            """
+            CREATE TABLE payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_ip TEXT NOT NULL,
+                tx_hash TEXT NOT NULL,
+                chain_id TEXT NOT NULL,
+                source TEXT NOT NULL,
+                paid_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                quota_bytes INTEGER NOT NULL DEFAULT 0,
+                derivation_index INTEGER NOT NULL DEFAULT -1
+            )
+            """
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX idx_payments_tx_hash ON payments(tx_hash)"
+        )
+        conn.commit()
+
+    def test_migration_creates_composite_unique(self):
+        self._create_old_schema()
+        conn = db_mod._db_conn()
+        conn.execute(
+            "INSERT INTO payments (client_ip, tx_hash, chain_id, source, paid_at, expires_at) "
+            "VALUES ('10.0.0.1', '0xaaa', 'base', 'test', 1000, 2000)"
+        )
+        conn.commit()
+
+        db_mod._migrate_payments_unique_constraint(conn)
+
+        indexes = conn.execute("PRAGMA index_list(payments)").fetchall()
+        composite_found = False
+        old_found = False
+        for idx in indexes:
+            if not idx[2]:
+                continue
+            info = conn.execute(f"PRAGMA index_info({idx[1]})").fetchall()
+            cols = tuple(r[2] for r in info)
+            if cols == ("chain_id", "tx_hash"):
+                composite_found = True
+            elif cols == ("tx_hash",):
+                old_found = True
+        self.assertTrue(composite_found, "composite unique index missing")
+        self.assertFalse(old_found, "old tx_hash unique index still present")
+
+        row = conn.execute(
+            "SELECT client_ip, tx_hash, chain_id FROM payments WHERE tx_hash = '0xaaa'"
+        ).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row[0], "10.0.0.1")
+        self.assertEqual(row[2], "base")
+
+    def test_migration_noop_when_composite_exists(self):
+        self._create_old_schema()
+        conn = db_mod._db_conn()
+        conn.execute(
+            "DROP INDEX idx_payments_tx_hash"
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX idx_payments_chain_tx ON payments(chain_id, tx_hash)"
+        )
+        conn.execute(
+            "INSERT INTO payments (client_ip, tx_hash, chain_id, source, paid_at, expires_at) "
+            "VALUES ('10.0.0.2', '0xbbb', 'base', 'test', 1000, 2000)"
+        )
+        conn.commit()
+
+        db_mod._migrate_payments_unique_constraint(conn)
+
+        row = conn.execute(
+            "SELECT client_ip FROM payments WHERE tx_hash = '0xbbb'"
+        ).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row[0], "10.0.0.2")
+
+
 if __name__ == "__main__":
     unittest.main()

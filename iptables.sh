@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+echo "[DEPRECATED] This script is for legacy standalone use only."
+echo "[DEPRECATED] Use scripts/start-ap.sh for production deployments."
+echo "[DEPRECATED] This script flushes ALL iptables rules and may break Docker."
+
 WLAN="wlx30b49ed56fdd"
 WAN="enx026445343736"
 AP_NET="10.0.0.0/24"

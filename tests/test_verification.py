@@ -2,6 +2,7 @@
 
 import time
 import unittest
+from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone
 
 from verification import _match_tx, _check_token_transfers
@@ -375,6 +376,157 @@ class TestTimestampTolerance(unittest.TestCase):
         }
         result = _match_tx(tx, tier_map, "0xAAAA", created_at=now)
         self.assertIsNotNone(result)
+
+
+class _MockPriceService:
+    def get_prices(self, symbols):
+        return {"ETH": 3500.0, "USDC": 1.0, "USDT": 1.0}
+
+    def convert_usd_to_token(self, usd_amount, token_symbol, prices, decimals=18):
+        price = prices.get(token_symbol.upper(), 0)
+        if not price:
+            return None, None, None
+        amount = usd_amount / price
+        smallest = int(round(amount * 10 ** decimals))
+        return f"{amount:.{decimals}f}", str(smallest), decimals
+
+
+class TestVerifyCache(unittest.TestCase):
+    """Tests for _VerifyCache."""
+
+    def setUp(self):
+        from verification import _VerifyCache
+        self.cache = _VerifyCache(ttl_seconds=10, max_size=3)
+
+    def test_get_set(self):
+        self.cache.set("k1", 100, "v1")
+        self.assertEqual(self.cache.get("k1", 101), "v1")
+
+    def test_get_missing_key(self):
+        self.assertIsNone(self.cache.get("missing", 100))
+
+    def test_ttl_expiry(self):
+        self.cache.set("k1", 100, "v1")
+        self.assertEqual(self.cache.get("k1", 105), "v1")
+        self.assertIsNone(self.cache.get("k1", 111))
+
+    def test_max_size_eviction(self):
+        self.cache.set("k1", 100, "v1")
+        self.cache.set("k2", 100, "v2")
+        self.cache.set("k3", 100, "v3")
+        self.cache.set("k4", 100, "v4")
+        self.assertIsNone(self.cache.get("k1", 101))
+
+    def test_lru_refresh_on_get(self):
+        self.cache = _VerifyCache(ttl_seconds=10, max_size=3) if False else self.cache
+        self.cache.set("k1", 100, "v1")
+        self.cache.set("k2", 100, "v2")
+        self.cache.set("k3", 100, "v3")
+        self.cache.get("k1", 101)
+        self.cache.set("k4", 100, "v4")
+        self.assertEqual(self.cache.get("k1", 101), "v1")
+        self.assertIsNone(self.cache.get("k2", 101))
+
+
+class TestVerifyPaymentOnChain(unittest.TestCase):
+    """Tests for verify_payment_on_chain()."""
+
+    def setUp(self):
+        from verification import _VerifyCache, VERIFY_CACHE_SECONDS, VERIFY_CACHE_MAX_SIZE
+        self.mock_price = _MockPriceService()
+        self._patcher_cache = patch(
+            "verification._verify_cache",
+            _VerifyCache(VERIFY_CACHE_SECONDS, VERIFY_CACHE_MAX_SIZE),
+        )
+        self._patcher_cache.start()
+
+    def tearDown(self):
+        self._patcher_cache.stop()
+
+    def _mock_response(self, items, next_page_params=None):
+        resp = MagicMock()
+        resp.json.return_value = {"items": items, "next_page_params": next_page_params}
+        resp.raise_for_status = MagicMock()
+        return resp
+
+    def _now_iso(self):
+        from datetime import datetime, timezone
+        return datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def test_verify_native_eth_match(self):
+        from verification import verify_payment_on_chain
+        address = "0xAAAA"
+        chain_id = "base"
+        eth_wei = str(int(round(0.50 / 3500.0 * 10 ** 18)))
+        items = [
+            {
+                "to": {"hash": address},
+                "status": "ok",
+                "confirmations": "10",
+                "value": eth_wei,
+                "hash": "0xTX_NATIVE",
+                "timestamp": self._now_iso(),
+            }
+        ]
+        with patch("verification.requests.get", return_value=self._mock_response(items)):
+            ok, tx_hash, quota, msg = verify_payment_on_chain(
+                address, chain_id, price_service=self.mock_price
+            )
+        self.assertTrue(ok)
+        self.assertEqual(tx_hash, "0xTX_NATIVE")
+        self.assertGreater(quota, 0)
+
+    def test_verify_erc20_match(self):
+        from verification import verify_payment_on_chain
+        address = "0xAAAA"
+        chain_id = "base"
+        usdc_units = str(int(round(0.50 / 1.0 * 10 ** 6)))
+        token_transfer_items = [
+            {
+                "to": {"hash": address},
+                "total": {"value": usdc_units},
+                "token": {"symbol": "USDC"},
+                "tx_hash": "0xTX_ERC20",
+                "timestamp": self._now_iso(),
+            }
+        ]
+        empty_response = self._mock_response([])
+        token_response = self._mock_response(token_transfer_items)
+        with patch("verification.requests.get", side_effect=[empty_response, empty_response, token_response]):
+            ok, tx_hash, quota, msg = verify_payment_on_chain(
+                address, chain_id, price_service=self.mock_price
+            )
+        self.assertTrue(ok)
+        self.assertEqual(tx_hash, "0xTX_ERC20")
+        self.assertGreater(quota, 0)
+
+    def test_verify_no_match(self):
+        from verification import verify_payment_on_chain
+        address = "0xAAAA"
+        chain_id = "base"
+        with patch("verification.requests.get", return_value=self._mock_response([])):
+            ok, tx_hash, quota, msg = verify_payment_on_chain(
+                address, chain_id, price_service=self.mock_price
+            )
+        self.assertFalse(ok)
+        self.assertIsNone(tx_hash)
+        self.assertEqual(quota, 0)
+
+    def test_verify_network_error(self):
+        from verification import verify_payment_on_chain
+        import requests as req_lib
+        address = "0xAAAA"
+        chain_id = "base"
+        with patch(
+            "verification.requests.get",
+            side_effect=req_lib.RequestException("connection refused"),
+        ):
+            ok, tx_hash, quota, msg = verify_payment_on_chain(
+                address, chain_id, price_service=self.mock_price
+            )
+        self.assertFalse(ok)
+        self.assertIsNone(tx_hash)
+        self.assertEqual(quota, 0)
 
 
 if __name__ == "__main__":

@@ -12,7 +12,9 @@ import io
 import collections
 import ipaddress
 import json
+import logging
 import os
+import re
 import secrets
 import sqlite3
 import threading
@@ -271,26 +273,38 @@ _DEFAULT_CHAINS = {
 _CHAINS_CONFIG_PATH = os.environ.get("CAPTIVE_CHAINS_CONFIG", "/etc/captive-portal/chains.json")
 
 
+_BLOCKSCOUT_URL_PATTERN = re.compile(r"^https://[a-zA-Z0-9.-]+\.blockscout\.com(/|$)")
+
+
 def _load_chains():
     try:
         with open(_CHAINS_CONFIG_PATH) as f:
             data = json.load(f)
         if not isinstance(data, dict):
             return _DEFAULT_CHAINS
-        for chain_id, chain_cfg in data.items():
+        for chain_id, chain_cfg in list(data.items()):
             if not isinstance(chain_cfg, dict):
-                return _DEFAULT_CHAINS
+                data.pop(chain_id, None)
+                continue
             for key in ("name", "chain_id", "blockscout_api", "tiers"):
                 if key not in chain_cfg:
-                    return _DEFAULT_CHAINS
-            if not isinstance(chain_cfg["tiers"], list) or not chain_cfg["tiers"]:
-                return _DEFAULT_CHAINS
-            for tier in chain_cfg["tiers"]:
-                if not isinstance(tier, dict) or "quota_bytes" not in tier:
-                    return _DEFAULT_CHAINS
-                if "amount_usd" not in tier and "amount_wei" not in tier:
-                    return _DEFAULT_CHAINS
-        return data
+                    data.pop(chain_id, None)
+                    break
+            else:
+                if not isinstance(chain_cfg["tiers"], list) or not chain_cfg["tiers"]:
+                    data.pop(chain_id, None)
+                    continue
+                for tier in chain_cfg["tiers"]:
+                    if not isinstance(tier, dict) or "quota_bytes" not in tier:
+                        data.pop(chain_id, None)
+                        break
+                    if "amount_usd" not in tier and "amount_wei" not in tier:
+                        data.pop(chain_id, None)
+                        break
+                else:
+                    if not _BLOCKSCOUT_URL_PATTERN.match(chain_cfg.get("blockscout_api", "")):
+                        data.pop(chain_id, None)
+        return data if data else _DEFAULT_CHAINS
     except (FileNotFoundError, json.JSONDecodeError, KeyError, TypeError):
         return _DEFAULT_CHAINS
 
@@ -1048,7 +1062,8 @@ def verify_payment_on_chain(address, chain_id, client_ip=None, created_at=None):
                 resp.raise_for_status()
                 data = resp.json()
             except requests.RequestException as exc:
-                return False, None, 0, f"Network error while contacting Blockscout: {exc}"
+                logging.warning("Blockscout request failed: %s", exc)
+                return False, None, 0, "Error contacting payment network"
 
             result = checker(data.get("items") or [], tier_map, address, created_at)
             if result:
@@ -1439,7 +1454,8 @@ def qr_image():
 
 def _require_same_origin():
     """Return a 403 response if the request does not come from the same origin."""
-    allowed = request.scheme + "://" + request.host
+    trusted_host = os.environ.get("SERVER_HOST", "localhost")
+    allowed = request.scheme + "://" + trusted_host
     origin = request.headers.get("Origin") or request.headers.get("Referer") or ""
     parsed = urlparse(origin)
     if f"{parsed.scheme}://{parsed.netloc}" != allowed:
@@ -1478,6 +1494,10 @@ def check_payment():
     rl_key = client_ip
     if not hasattr(app, "_rate_limits"):
         app._rate_limits = {}
+    # Evict entries older than 60 seconds to prevent unbounded growth.
+    stale_keys = [k for k, v in app._rate_limits.items() if now_ts - v[1] > 60]
+    for k in stale_keys:
+        del app._rate_limits[k]
     rl = app._rate_limits.get(rl_key)
     if rl and now_ts - rl[1] < 1.0:
         if rl[0] >= 5:
