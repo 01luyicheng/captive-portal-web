@@ -51,6 +51,11 @@ GRACE_QUOTA_BYTES = int(os.environ.get("GRACE_QUOTA_BYTES", "104857600"))
 GRACE_MAX_PER_24H = int(os.environ.get("GRACE_MAX_PER_24H", "1"))
 GRACE_COOLDOWN_SECONDS = int(os.environ.get("GRACE_COOLDOWN_SECONDS", "3600"))
 
+DB_BUSY_TIMEOUT = int(os.environ.get("DB_BUSY_TIMEOUT", "5000"))
+PENDING_CLEANUP_DAYS = int(os.environ.get("PENDING_CLEANUP_DAYS", "7"))
+PAYMENTS_CLEANUP_DAYS = int(os.environ.get("PAYMENTS_CLEANUP_DAYS", "90"))
+TX_TIMESTAMP_TOLERANCE = int(os.environ.get("TX_TIMESTAMP_TOLERANCE", "300"))
+
 # DEV_MODE enables the "simulate payment" helper. Disable in production.
 DEV_MODE = os.environ.get("CAPTIVE_PORTAL_DEV", "false").lower() in ("1", "true", "yes")
 
@@ -246,7 +251,7 @@ def derive_address(index):
 # ---------------------------------------------------------------------------
 def _db_conn():
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute(f"PRAGMA busy_timeout={DB_BUSY_TIMEOUT}")
     return conn
 
 
@@ -435,11 +440,11 @@ def init_db():
         now = int(time.time())
         conn.execute(
             "DELETE FROM pending_payments WHERE expires_at < ?",
-            (now - 7 * 86400,),
+            (now - PENDING_CLEANUP_DAYS * 86400,),
         )
         conn.execute(
             "DELETE FROM payments WHERE expires_at < ?",
-            (now - 90 * 86400,),
+            (now - PAYMENTS_CLEANUP_DAYS * 86400,),
         )
 
 
@@ -854,7 +859,7 @@ def _check_payment_items(items, tier_map, address, created_at, check_status=True
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=timezone.utc)
                 tx_time = dt.timestamp()
-                if tx_time < created_at - 300:
+                if tx_time < created_at - TX_TIMESTAMP_TOLERANCE:
                     continue
             except (ValueError, OverflowError):
                 pass
@@ -1039,6 +1044,12 @@ def index():
         "quotaBytes": tier["quota_bytes"],
         "tierIndex": tier_index,
         "clientStatus": client_status["status"],
+        "pollInterval": int(os.environ.get("POLL_INTERVAL_MS", "3000")),
+        "pollMaxInterval": int(os.environ.get("POLL_MAX_INTERVAL_MS", "30000")),
+        "redirectDelay": int(os.environ.get("REDIRECT_DELAY_MS", "1000")),
+        "lowBytesThreshold": int(os.environ.get("LOW_BYTES_THRESHOLD", "52428800")),
+        "lowTimeThreshold": int(os.environ.get("LOW_TIME_THRESHOLD", "600")),
+        "fetchTimeout": int(os.environ.get("FETCH_TIMEOUT_MS", "20000")),
     }
 
     return render_template(
@@ -1075,6 +1086,8 @@ def success():
         chain_name=cfg["name"],
         chain_icon=cfg["icon"],
         client_status=client_status,
+        status_poll_interval=int(os.environ.get("STATUS_POLL_INTERVAL_MS", "3000")),
+        network_check_interval=int(os.environ.get("NETWORK_CHECK_INTERVAL_MS", "3000")),
     )
 
 

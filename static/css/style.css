@@ -202,6 +202,14 @@ button.secondary:hover {
     background: #545b62;
 }
 
+.wallet-btn {
+    background: #f6851b;
+}
+
+.wallet-btn:hover {
+    background: #e2761b;
+}
+
 button:disabled {
     opacity: 0.6;
     cursor: not-allowed;

@@ -38,6 +38,12 @@
         </div>
     </div>
 
+    <script>
+    var PAGE_CONFIG = {
+        statusPollInterval: {{ status_poll_interval }},
+        networkCheckInterval: {{ network_check_interval }}
+    };
+    </script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

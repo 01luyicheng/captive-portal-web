@@ -45,16 +45,24 @@
                 <button id="copy-btn" type="button">复制</button>
             </div>
 
-            <h2>扫码支付</h2>
-            <p>请使用钱包扫描下方二维码完成支付。</p>
-            <img id="qr-code" src="{{ url_for('qr_image', chain=chain_id, address=eth_address, amount_wei=amount_wei) }}" alt="Payment QR Code" class="qr-code">
+            <div id="qr-section">
+                <h2>扫码支付</h2>
+                <p>请使用钱包扫描下方二维码完成支付。</p>
+                <img id="qr-code" src="{{ url_for('qr_image', chain=chain_id, address=eth_address, amount_wei=amount_wei) }}" alt="Payment QR Code" class="qr-code">
 
-            <div class="wallet-links">
-                <a id="metamask-link" href="#" target="_blank" rel="noopener">在 MetaMask 中打开</a>
+                <div class="wallet-links">
+                    <a id="metamask-link" href="#" target="_blank" rel="noopener">在 MetaMask 中打开</a>
+                </div>
+            </div>
+
+            <div id="wallet-section" style="display:none">
+                <h2>钱包支付</h2>
+                <p>点击下方按钮直接从浏览器钱包发送。</p>
             </div>
             {% endif %}
 
             <div class="actions">
+                <button id="wallet-btn" type="button" class="wallet-btn">连接钱包支付</button>
                 <button id="check-btn" type="button">检查支付状态</button>
             </div>
 

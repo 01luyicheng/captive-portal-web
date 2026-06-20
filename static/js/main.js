@@ -13,6 +13,9 @@
     const qrCode = document.getElementById('qr-code');
     const metamaskLink = document.getElementById('metamask-link');
 
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const hasWindowEthereum = typeof window.ethereum !== 'undefined';
+
     const configEl = document.getElementById('portal-config');
     let CONFIG = {};
     try {
@@ -20,11 +23,14 @@
     } catch (e) {
         CONFIG = {};
     }
+    if (typeof PAGE_CONFIG !== 'undefined') {
+        Object.assign(CONFIG, PAGE_CONFIG);
+    }
 
     let pollTimer = null;
     let statusTimer = null;
     let networkTimer = null;
-    let pollDelay = 3000;
+    let pollDelay = CONFIG.pollInterval || 3000;
     let pollInFlight = false;
     let isPageVisible = !document.hidden;
     let chains = {};
@@ -159,8 +165,64 @@
 
             populateTierSelect();
             updateChainUI();
+            updateWalletVisibility();
         } catch (err) {
             showStatus('无法加载支付网络：' + err.message, 'error');
+        }
+    }
+
+    async function payWithWallet() {
+        if (!window.ethereum) {
+            showStatus('未检测到钱包插件，请安装 MetaMask 或其他钱包插件', 'error');
+            return;
+        }
+        try {
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            if (!accounts || accounts.length === 0) {
+                showStatus('请先解锁钱包', 'error');
+                return;
+            }
+            const tier = selectedTier();
+            if (!tier) return;
+            showStatus('请在钱包中确认交易…', 'info');
+            const txHash = await window.ethereum.request({
+                method: 'eth_sendTransaction',
+                params: [{
+                    from: accounts[0],
+                    to: CONFIG.ethAddress,
+                    value: '0x' + BigInt(tier.amount_wei).toString(16),
+                    chainId: '0x' + CONFIG.chainId.toString(16)
+                }]
+            });
+            showStatus('交易已提交，等待确认…', 'info');
+            startPaymentPolling();
+        } catch (err) {
+            if (err.code === 4001) {
+                showStatus('交易已取消', 'error');
+            } else {
+                showStatus('交易失败：' + err.message, 'error');
+            }
+        }
+    }
+
+    var walletBtn = document.getElementById('wallet-btn');
+    if (walletBtn) {
+        walletBtn.addEventListener('click', payWithWallet);
+    }
+
+    function updateWalletVisibility() {
+        var qrSection = document.getElementById('qr-section');
+        var walletSection = document.getElementById('wallet-section');
+        var walletBtnEl = document.getElementById('wallet-btn');
+
+        if (hasWindowEthereum && !isMobile) {
+            if (qrSection) qrSection.style.display = 'none';
+            if (walletSection) walletSection.style.display = '';
+            if (walletBtnEl) walletBtnEl.style.display = '';
+        } else {
+            if (qrSection) qrSection.style.display = '';
+            if (walletSection) walletSection.style.display = 'none';
+            if (walletBtnEl) walletBtnEl.style.display = 'none';
         }
     }
 
@@ -179,7 +241,7 @@
     }
 
     function startPaymentPolling() {
-        pollDelay = 3000;
+        pollDelay = CONFIG.pollInterval || 3000;
         schedulePoll(pollDelay);
     }
 
@@ -207,7 +269,7 @@
                 controller = new AbortController();
                 fetchTimeout = setTimeout(function () {
                     controller.abort();
-                }, 20000);
+                }, CONFIG.fetchTimeout || 20000);
             }
 
             const res = await fetch(url, {
@@ -230,14 +292,14 @@
                 stopPaymentPolling();
                 setTimeout(function () {
                     window.location.href = '/success';
-                }, 1000);
+                }, CONFIG.redirectDelay || 1000);
                 return;
             } else if (!auto) {
                 showStatus('尚未检测到支付，请完成支付后等待确认。', 'error');
             }
 
             if (auto) {
-                pollDelay = 3000;
+                pollDelay = CONFIG.pollInterval || 3000;
                 schedulePoll(pollDelay);
             }
         } catch (err) {
@@ -245,7 +307,7 @@
                 showStatus('检查失败：' + err.message, 'error');
             }
             if (auto) {
-                pollDelay = Math.min(30000, pollDelay * 2);
+                pollDelay = Math.min(CONFIG.pollMaxInterval || 30000, pollDelay * 2);
                 schedulePoll(pollDelay);
             }
         } finally {
@@ -274,7 +336,7 @@
             showStatus('模拟支付成功，正在跳转…', 'success');
             setTimeout(function () {
                 window.location.href = '/success';
-            }, 1000);
+            }, CONFIG.redirectDelay || 1000);
         } catch (err) {
             showStatus('模拟支付失败：' + err.message, 'error');
             if (simulateBtn) simulateBtn.disabled = false;
@@ -294,7 +356,7 @@
             showStatus('已开启临时免费上网（' + formatBytes(data.quota_bytes) + ' / 5分钟）', 'success');
             setTimeout(function () {
                 window.location.reload();
-            }, 1000);
+            }, CONFIG.redirectDelay || 1000);
         } catch (err) {
             showStatus('开启失败：' + err.message, 'error');
             if (graceBtn) graceBtn.disabled = false;
@@ -415,7 +477,7 @@
             updateUsageBar(data.used_bytes, data.quota_bytes);
 
             if (renewHint) {
-                if (remainingBytes < 52428800 || remainingSeconds < 600) {
+                if (remainingBytes < (CONFIG.lowBytesThreshold || 52428800) || remainingSeconds < (CONFIG.lowTimeThreshold || 600)) {
                     renewHint.classList.remove('hidden');
                 } else {
                     renewHint.classList.add('hidden');
@@ -475,9 +537,9 @@
     if (document.getElementById('remaining-bytes')) {
         // On success page.
         pollStatus();
-        statusTimer = setInterval(pollStatus, 3000);
+        statusTimer = setInterval(pollStatus, CONFIG.statusPollInterval || 3000);
         checkNetwork();
-        networkTimer = setInterval(checkNetwork, 3000);
+        networkTimer = setInterval(checkNetwork, CONFIG.networkCheckInterval || 3000);
     } else if (currentChain) {
         // On payment page.
         loadChains();
