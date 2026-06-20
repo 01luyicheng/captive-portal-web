@@ -23,5 +23,8 @@ ReadWritePaths=/var/lib/captive-portal
 Restart=always
 RestartSec=5
 
+[Journal]
+SystemMaxUse=50M
+
 [Install]
 WantedBy=multi-user.target

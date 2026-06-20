@@ -1,0 +1,80 @@
+{
+  "base": {
+    "name": "Base",
+    "chain_id": 8453,
+    "blockscout_api": "https://base.blockscout.com/api/v2",
+    "block_time": 2,
+    "recommended": true,
+    "icon": "🔵",
+    "tiers": [
+      {"amount_eth": "0.00001", "amount_wei": "10000000000000", "quota_bytes": 104857600},
+      {"amount_eth": "0.00003", "amount_wei": "30000000000000", "quota_bytes": 536870912},
+      {"amount_eth": "0.00005", "amount_wei": "50000000000000", "quota_bytes": 1073741824}
+    ]
+  },
+  "polygon": {
+    "name": "Polygon PoS",
+    "chain_id": 137,
+    "blockscout_api": "https://polygon.blockscout.com/api/v2",
+    "block_time": 2,
+    "recommended": true,
+    "icon": "🟣",
+    "tiers": [
+      {"amount_eth": "0.005", "amount_wei": "5000000000000000", "quota_bytes": 104857600},
+      {"amount_eth": "0.015", "amount_wei": "15000000000000000", "quota_bytes": 536870912},
+      {"amount_eth": "0.025", "amount_wei": "25000000000000000", "quota_bytes": 1073741824}
+    ]
+  },
+  "arbitrum": {
+    "name": "Arbitrum One",
+    "chain_id": 42161,
+    "blockscout_api": "https://arbitrum.blockscout.com/api/v2",
+    "block_time": 0.25,
+    "recommended": false,
+    "icon": "🔷",
+    "tiers": [
+      {"amount_eth": "0.00001", "amount_wei": "10000000000000", "quota_bytes": 104857600},
+      {"amount_eth": "0.00003", "amount_wei": "30000000000000", "quota_bytes": 536870912},
+      {"amount_eth": "0.00005", "amount_wei": "50000000000000", "quota_bytes": 1073741824}
+    ]
+  },
+  "optimism": {
+    "name": "Optimism",
+    "chain_id": 10,
+    "blockscout_api": "https://optimism.blockscout.com/api/v2",
+    "block_time": 2,
+    "recommended": false,
+    "icon": "🔴",
+    "tiers": [
+      {"amount_eth": "0.00001", "amount_wei": "10000000000000", "quota_bytes": 104857600},
+      {"amount_eth": "0.00003", "amount_wei": "30000000000000", "quota_bytes": 536870912},
+      {"amount_eth": "0.00005", "amount_wei": "50000000000000", "quota_bytes": 1073741824}
+    ]
+  },
+  "bsc": {
+    "name": "BNB Smart Chain",
+    "chain_id": 56,
+    "blockscout_api": "https://bnb.blockscout.com/api/v2",
+    "block_time": 3,
+    "recommended": false,
+    "icon": "🟡",
+    "tiers": [
+      {"amount_eth": "0.0001", "amount_wei": "100000000000000", "quota_bytes": 104857600},
+      {"amount_eth": "0.0003", "amount_wei": "300000000000000", "quota_bytes": 536870912},
+      {"amount_eth": "0.0005", "amount_wei": "500000000000000", "quota_bytes": 1073741824}
+    ]
+  },
+  "ethereum": {
+    "name": "Ethereum Mainnet",
+    "chain_id": 1,
+    "blockscout_api": "https://eth.blockscout.com/api/v2",
+    "block_time": 12,
+    "recommended": false,
+    "icon": "⬛",
+    "tiers": [
+      {"amount_eth": "0.00001", "amount_wei": "10000000000000", "quota_bytes": 104857600},
+      {"amount_eth": "0.00003", "amount_wei": "30000000000000", "quota_bytes": 536870912},
+      {"amount_eth": "0.00005", "amount_wei": "50000000000000", "quota_bytes": 1073741824}
+    ]
+  }
+}

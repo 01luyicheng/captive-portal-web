@@ -11,6 +11,7 @@ mnemonic using the standard Ethereum derivation path (m/44'/60'/0'/0/{index}).
 import io
 import collections
 import ipaddress
+import json
 import os
 import secrets
 import sqlite3
@@ -116,7 +117,7 @@ _verify_cache = _VerifyCache(VERIFY_CACHE_SECONDS, VERIFY_CACHE_MAX_SIZE)
 # Supported EVM chains. Each chain provides multiple payment tiers; the fiat
 # value of the smallest tier is roughly the same across chains while keeping
 # gas fees tiny on L2s.
-CHAINS = {
+_DEFAULT_CHAINS = {
     "base": {
         "name": "Base",
         "chain_id": 8453,
@@ -196,6 +197,19 @@ CHAINS = {
         ],
     },
 }
+
+_CHAINS_CONFIG_PATH = os.environ.get("CAPTIVE_CHAINS_CONFIG", "/etc/captive-portal/chains.json")
+
+
+def _load_chains():
+    try:
+        with open(_CHAINS_CONFIG_PATH) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return _DEFAULT_CHAINS
+
+
+CHAINS = _load_chains()
 
 DEFAULT_CHAIN = "base"
 
@@ -1064,6 +1078,18 @@ def success():
     )
 
 
+@app.route("/api/health")
+def health_check():
+    checks = {}
+    try:
+        with _db_conn() as conn:
+            conn.execute("SELECT 1")
+        checks["database"] = "ok"
+    except Exception:
+        checks["database"] = "error"
+    return jsonify(checks), 200 if all(v == "ok" for v in checks.values()) else 503
+
+
 @app.route("/api/chains")
 def list_chains():
     """Return supported chains and their payment tiers."""
@@ -1210,8 +1236,9 @@ def check_payment():
             {"paid": False, "error": "No pending payment found"}
         ), 404
 
+    last_message = ""
     for pending in pending_list:
-        ok, tx_hash, quota_bytes, message = verify_payment_on_chain(
+        ok, tx_hash, quota_bytes, last_message = verify_payment_on_chain(
             pending["address"], chain_id, client_ip=client_ip, created_at=pending["created_at"]
         )
         if ok:
@@ -1225,14 +1252,13 @@ def check_payment():
                 }
             )
 
-    # None matched; include the first pending address as a reference for the user.
     pending = pending_list[0]
     return jsonify(
         {
             "paid": False,
             "address": pending["address"],
             "amount_wei": pending["amount_wei"],
-            "message": message,
+            "message": last_message,
         }
     )
 

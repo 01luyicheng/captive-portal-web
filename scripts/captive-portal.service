@@ -33,6 +33,10 @@ EnvironmentFile=-/etc/captive-portal/env
 ExecStart=/opt/captive-portal-web/run.sh
 Restart=always
 RestartSec=5
+TimeoutStopSec=10
+
+[Journal]
+SystemMaxUse=100M
 
 [Install]
 WantedBy=multi-user.target

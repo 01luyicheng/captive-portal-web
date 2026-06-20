@@ -168,8 +168,18 @@ sync_once() {
 }
 
 if [ "${1:-}" = "--daemon" ]; then
+    SYNC_COUNT=0
     while true; do
         sync_once
+        SYNC_COUNT=$((SYNC_COUNT + 1))
+        if [ $((SYNC_COUNT % 30)) -eq 0 ]; then
+            sqlite3 "${DB_PATH}" "PRAGMA wal_checkpoint(PASSIVE)" 2>/dev/null || true
+        fi
+        if [ $((SYNC_COUNT % 300)) -eq 0 ]; then
+            NOW=$(date +%s)
+            sqlite3 "${DB_PATH}" "DELETE FROM pending_payments WHERE expires_at < $((NOW - 604800))" 2>/dev/null || true
+            sqlite3 "${DB_PATH}" "DELETE FROM payments WHERE expires_at < $((NOW - 7776000))" 2>/dev/null || true
+        fi
         sleep "${SYNC_INTERVAL}"
     done
 else
