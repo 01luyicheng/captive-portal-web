@@ -14,7 +14,10 @@ Environment=SYNC_INTERVAL=5
 # GRACE_DURATION_SECONDS=300
 # GRACE_QUOTA_BYTES=104857600
 # ACCESS_DURATION=86400
-AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+AmbientCapabilities=CAP_NET_ADMIN
+ProtectKernelTunables=true
+ProtectControlGroups=true
+MemoryDenyWriteExecute=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
@@ -22,6 +25,8 @@ PrivateTmp=true
 ReadWritePaths=/var/lib/captive-portal
 Restart=always
 RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Journal]
 SystemMaxUse=50M

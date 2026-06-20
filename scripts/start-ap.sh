@@ -11,6 +11,28 @@ AP_NET="${AP_NET:-10.88.0.0/24}"
 PORTAL_IP="${PORTAL_IP:-10.88.0.1}"
 PORTAL_PORT="${PORTAL_PORT:-5000}"
 
+# Cleanup handler to restore state on failure
+_cleanup() {
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        echo "[!] Script failed (exit $exit_code). Restoring previous state..."
+        # Restore FORWARD policy if it was saved
+        if [ -f /run/eth-wifi-forward-policy ]; then
+            iptables -P FORWARD "$(cat /run/eth-wifi-forward-policy)" 2>/dev/null || true
+        fi
+        # Clean up partial iptables chains
+        iptables -D INPUT -j ETH_WIFI 2>/dev/null || true
+        iptables -D FORWARD -j ETH_WIFI 2>/dev/null || true
+        iptables -F ETH_WIFI 2>/dev/null || true
+        iptables -X ETH_WIFI 2>/dev/null || true
+        iptables -t nat -D PREROUTING -j ETH_WIFI_NAT 2>/dev/null || true
+        iptables -t nat -D POSTROUTING -j ETH_WIFI_NAT 2>/dev/null || true
+        iptables -t nat -F ETH_WIFI_NAT 2>/dev/null || true
+        iptables -t nat -X ETH_WIFI_NAT 2>/dev/null || true
+    fi
+}
+trap _cleanup EXIT
+
 echo "[*] Stopping services if already running..."
 systemctl stop eth-wifi-sync 2>/dev/null || true
 systemctl stop hostapd@eth-wifi 2>/dev/null || true
@@ -34,7 +56,7 @@ ip link set "${AP_IF}" up
 
 echo "[*] Enabling IP forwarding..."
 sysctl -w net.ipv4.ip_forward=1 >/dev/null
-sysctl -w net.ipv6.conf.${AP_IF}.disable_ipv6=1 >/dev/null
+sysctl -w "net.ipv6.conf.${AP_IF}.disable_ipv6=1" >/dev/null
 
 echo "[*] Saving current FORWARD default policy..."
 iptables -S FORWARD | awk '/^-P FORWARD/{print $3}' > /run/eth-wifi-forward-policy

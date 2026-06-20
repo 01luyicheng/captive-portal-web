@@ -3,7 +3,6 @@
 
     const statusEl = document.getElementById('status');
     const checkBtn = document.getElementById('check-btn');
-    const simulateBtn = document.getElementById('simulate-btn');
     const graceBtn = document.getElementById('grace-btn');
     const copyBtn = document.getElementById('copy-btn');
     const addressEl = document.getElementById('eth-address');
@@ -24,7 +23,10 @@
     } catch (e) {
         CONFIG = {};
     }
-    if (typeof PAGE_CONFIG !== 'undefined') {
+    const pageConfigEl = document.getElementById('page-config');
+    if (pageConfigEl) {
+        try { Object.assign(CONFIG, JSON.parse(pageConfigEl.textContent)); } catch (e) {}
+    } else if (typeof PAGE_CONFIG !== 'undefined') {
         Object.assign(CONFIG, PAGE_CONFIG);
     }
 
@@ -187,6 +189,17 @@
             const tier = selectedTier();
             if (!tier) return;
             showStatus('请在钱包中确认交易…', 'info');
+            try {
+                const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
+                const currentChainId = parseInt(chainIdHex, 16);
+                if (currentChainId !== CONFIG.chainId) {
+                    showStatus('请先切换到正确的网络（' + chains[currentChain]?.name + '）', 'error');
+                    return;
+                }
+            } catch (e) {
+                showStatus('无法验证网络，请确保已切换到 ' + (chains[currentChain]?.name || '正确网络'), 'error');
+                return;
+            }
             const txHash = await window.ethereum.request({
                 method: 'eth_sendTransaction',
                 params: [{
@@ -207,7 +220,7 @@
         }
     }
 
-    var walletBtn = document.getElementById('wallet-btn');
+    const walletBtn = document.getElementById('wallet-btn');
     if (walletBtn) {
         walletBtn.addEventListener('click', payWithWallet);
     }
@@ -261,7 +274,12 @@
             if (!auto && checkBtn) {
                 checkBtn.disabled = true;
                 showStatus('', 'info');
-                statusEl.innerHTML = '<span class="spinner"></span>正在检查支付状态…';
+                statusEl.textContent = '';
+                var spinner = document.createElement('span');
+                spinner.className = 'spinner';
+                spinner.setAttribute('aria-hidden', 'true');
+                statusEl.appendChild(spinner);
+                statusEl.appendChild(document.createTextNode('正在检查支付状态…'));
             }
 
             const url = '/api/check-payment?chain=' + encodeURIComponent(currentChain) +
@@ -292,6 +310,7 @@
                 } else {
                     showStatus('支付已确认，正在跳转…', 'success');
                 }
+                pollDelay = CONFIG.pollInterval || 3000;
                 stopPaymentPolling();
                 setTimeout(function () {
                     window.location.href = '/success';
@@ -328,12 +347,11 @@
         }
 
         try {
-            if (simulateBtn) simulateBtn.disabled = true;
             const url = '/api/simulate-payment?chain=' + encodeURIComponent(currentChain) +
                 '&tier=' + encodeURIComponent(currentTier);
             const res = await fetch(url, { method: 'POST' });
             if (!res.ok) {
-                const data = await res.json();
+                const data = await res.json().catch(function() { return {}; });
                 throw new Error(data.error || '请求失败：' + res.status);
             }
             showStatus('模拟支付成功，正在跳转…', 'success');
@@ -342,7 +360,6 @@
             }, CONFIG.redirectDelay || 1000);
         } catch (err) {
             showStatus('模拟支付失败：' + err.message, 'error');
-            if (simulateBtn) simulateBtn.disabled = false;
         }
     }
 
@@ -352,11 +369,11 @@
             graceBtn.disabled = true;
             showStatus('正在开启临时免费上网…', 'info');
             const res = await fetch('/api/activate-grace', { method: 'POST' });
-            const data = await res.json();
+            const data = await res.json().catch(function() { return {}; });
             if (!res.ok || !data.ok) {
                 throw new Error(data.error || '开启失败：' + res.status);
             }
-            showStatus('已开启临时免费上网（' + formatBytes(data.quota_bytes) + ' / 5分钟）', 'success');
+            showStatus('已开启临时免费上网（' + formatBytes(data.quota_bytes) + ' / ' + formatSeconds(CONFIG.graceDurationSeconds || 300) + '）', 'success');
             setTimeout(function () {
                 window.location.reload();
             }, CONFIG.redirectDelay || 1000);
@@ -401,10 +418,6 @@
         checkBtn.addEventListener('click', function () {
             checkPayment(false);
         });
-    }
-
-    if (simulateBtn) {
-        simulateBtn.addEventListener('click', simulatePayment);
     }
 
     if (graceBtn) {
@@ -552,7 +565,7 @@
         pollStatus();
         statusTimer = setInterval(pollStatus, CONFIG.statusPollInterval || 3000);
         checkNetwork();
-        networkTimer = setInterval(checkNetwork, CONFIG.networkCheckInterval || 3000);
+        networkTimer = setInterval(checkNetwork, CONFIG.networkCheckInterval || 10000);
     } else if (currentChain) {
         // On payment page.
         loadChains();

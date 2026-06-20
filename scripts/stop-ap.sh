@@ -33,7 +33,7 @@ rm -f /run/eth-wifi-forward-policy
 
 echo "[*] Disabling IP forwarding..."
 sysctl -w net.ipv4.ip_forward=0 >/dev/null
-sysctl -w net.ipv6.conf.${AP_IF}.disable_ipv6=0 >/dev/null
+sysctl -w "net.ipv6.conf.${AP_IF}.disable_ipv6=0" >/dev/null
 
 echo "[*] Flushing authorization ipsets..."
 ipset flush paid_ips 2>/dev/null || true

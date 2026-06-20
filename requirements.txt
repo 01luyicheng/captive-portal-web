@@ -1,3 +1,5 @@
+# Supply chain security: run 'pip-compile --generate-hashes requirements.in' to add hash pins.
+# For now, exact version pins provide reproducibility.
 Flask==3.1.3
 gunicorn==26.0.0
 qrcode==8.2

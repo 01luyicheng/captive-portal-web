@@ -11,6 +11,9 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+MemoryDenyWriteExecute=true
 ReadWritePaths=/var/lib/captive-portal
 Environment=CAPTIVE_DB=/var/lib/captive-portal/payments.db
 Environment=ACCESS_DURATION=86400

@@ -11,16 +11,11 @@ set -euo pipefail
 DB_PATH="${CAPTIVE_DB:-/var/lib/captive-portal/payments.db}"
 SYNC_INTERVAL="${SYNC_INTERVAL:-5}"
 
-# Escape a single quote for safe use in a single-quoted SQLite string literal.
-_sql_escape() {
-    printf '%s' "$1" | sed "s/'/''/g"
-}
-
 # Parameterized DB helper: mark a client as expired only if it is still in the
 # expected status. This avoids SQL injection and accidental status overwrites.
 _expire_client_status() {
     local db_path="$1" client_ip="$2" old_status="$3"
-    python3 -c "import sqlite3,sys; conn=sqlite3.connect(sys.argv[1]); conn.execute('''UPDATE clients SET status='expired' WHERE client_ip=? AND status=?''', (sys.argv[2], sys.argv[3])); conn.commit(); conn.close()" "$db_path" "$client_ip" "$old_status"
+    python3 -c "import sqlite3,sys; conn=sqlite3.connect(sys.argv[1]); conn.execute('PRAGMA busy_timeout=5000'); conn.execute('''UPDATE clients SET status='expired' WHERE client_ip=? AND status=?''', (sys.argv[2], sys.argv[3])); conn.commit(); conn.close()" "$db_path" "$client_ip" "$old_status"
 }
 
 # CAP_NET_ADMIN is required for ipset operations. Root implicitly has it;
@@ -89,7 +84,7 @@ sync_once() {
             ipset add "${target}" "${client_ip}" 2>/dev/null || true
         fi
 
-        python3 -c "import sqlite3,sys; conn=sqlite3.connect(sys.argv[1]); conn.execute('UPDATE clients SET last_ipset_bytes=0, reset_ipset_at=0 WHERE client_ip=?', (sys.argv[2],)); conn.commit(); conn.close()" "${DB_PATH}" "${client_ip}"
+        python3 -c "import sqlite3,sys; conn=sqlite3.connect(sys.argv[1]); conn.execute('PRAGMA busy_timeout=5000'); conn.execute('UPDATE clients SET last_ipset_bytes=0, reset_ipset_at=0 WHERE client_ip=?', (sys.argv[2],)); conn.commit(); conn.close()" "${DB_PATH}" "${client_ip}"
     done < <(sqlite3 "${DB_PATH}" "SELECT client_ip, status, IFNULL(grace_until,0), IFNULL(paid_until,0), IFNULL(quota_bytes,0), IFNULL(used_bytes,0), IFNULL(reset_ipset_at,0) FROM clients;" 2>/dev/null)
 
     # ------------------------------------------------------------------
@@ -108,7 +103,7 @@ sync_once() {
     # Update counters using a parameterized Python script to avoid SQL injection.
     for ip in "${!ipset_bytes[@]}"; do
         bytes=${ipset_bytes[$ip]}
-        python3 -c "import sqlite3,sys; conn=sqlite3.connect(sys.argv[1]); conn.execute('UPDATE clients SET used_bytes=used_bytes+MAX(0,?-last_ipset_bytes), last_ipset_bytes=? WHERE client_ip=?', (sys.argv[2], sys.argv[2], sys.argv[3])); conn.commit(); conn.close()" "${DB_PATH}" "${bytes}" "${ip}"
+        python3 -c "import sqlite3,sys; conn=sqlite3.connect(sys.argv[1]); conn.execute('PRAGMA busy_timeout=5000'); conn.execute('UPDATE clients SET used_bytes=used_bytes+MAX(0,?-last_ipset_bytes), last_ipset_bytes=? WHERE client_ip=?', (sys.argv[2], sys.argv[2], sys.argv[3])); conn.commit(); conn.close()" "${DB_PATH}" "${bytes}" "${ip}"
     done
 
     # ------------------------------------------------------------------
@@ -168,8 +163,10 @@ sync_once() {
 }
 
 if [ "${1:-}" = "--daemon" ]; then
+    _shutdown=0
+    trap '_shutdown=1' TERM INT
     SYNC_COUNT=0
-    while true; do
+    while [ "${_shutdown}" -eq 0 ]; do
         sync_once
         SYNC_COUNT=$((SYNC_COUNT + 1))
         if [ $((SYNC_COUNT % 30)) -eq 0 ]; then

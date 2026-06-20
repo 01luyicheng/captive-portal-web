@@ -49,6 +49,8 @@ class PriceService:
         self.cmc_api_key = cmc_api_key or os.environ.get("COINMARKETCAP_API_KEY", "")
         self._cache = {}
         self._lock = threading.Lock()
+        self._empty_cache_expiry = {}
+        self._max_cache_size = 100
 
     def get_prices(self, symbols, vs_currency="usd"):
         """Get prices for a list of token symbols in USD.
@@ -62,17 +64,49 @@ class PriceService:
         with self._lock:
             if cache_key in self._cache:
                 ts, data = self._cache[cache_key]
-                if now - ts < self.cache_ttl:
+                empty_ttl = self._empty_cache_expiry.get(cache_key)
+                effective_ttl = empty_ttl - now if empty_ttl and now < empty_ttl else self.cache_ttl
+                if now - ts < effective_ttl:
                     return data
+                else:
+                    self._empty_cache_expiry.pop(cache_key, None)
 
         prices = self._fetch_coingecko(symbols, vs_currency)
         if not prices and self.cmc_api_key:
+            logger.info("CoinGecko returned no data, falling back to CoinMarketCap")
             prices = self._fetch_coinmarketcap(symbols, vs_currency)
+        elif not prices:
+            logger.warning("All price sources returned no data for symbols: %s", symbols)
 
         if prices:
-            now = time.time()
-            with self._lock:
+            missing = set(s.upper() for s in symbols) - set(prices.keys())
+            if missing:
+                logger.warning("Partial price data, missing: %s", missing)
+
+        now = time.time()
+        with self._lock:
+            if prices:
                 self._cache[cache_key] = (now, prices)
+            else:
+                if cache_key not in self._cache:
+                    self._cache[cache_key] = (now, {})
+                self._empty_cache_expiry[cache_key] = now + 10
+
+            if len(self._cache) > self._max_cache_size:
+                keys_to_remove = []
+                for k in list(self._cache.keys()):
+                    if k not in self._empty_cache_expiry:
+                        keys_to_remove.append(k)
+                        if len(self._cache) - len(keys_to_remove) <= self._max_cache_size:
+                            break
+                if len(keys_to_remove) < len(self._cache) - self._max_cache_size:
+                    sorted_keys = sorted(self._cache.keys(), key=lambda k: self._cache[k][0])
+                    for k in sorted_keys:
+                        if len(self._cache) - len(keys_to_remove) > self._max_cache_size:
+                            keys_to_remove.append(k)
+                for k in keys_to_remove:
+                    self._cache.pop(k, None)
+                    self._empty_cache_expiry.pop(k, None)
 
         return prices or {}
 
@@ -145,24 +179,17 @@ class PriceService:
             logger.warning("CoinMarketCap API error: %s", e)
             return {}
 
-    def convert_usd_to_token(self, usd_amount, token_symbol, prices):
+    def convert_usd_to_token(self, usd_amount, token_symbol, prices, decimals=18):
         """Convert a USD amount to token amount.
 
         Returns (token_amount_str, token_amount_wei_or_smallest_unit, decimals).
-        For native ETH: returns wei (18 decimals).
-        For ERC-20: returns smallest unit (e.g., 6 decimals for USDC).
+        Use decimals from chain token config (18 for native, varies for ERC-20).
         """
         token = token_symbol.upper()
         price = prices.get(token)
         if not price or price <= 0:
             return None, None, None
 
-        NATIVE_TOKENS = {"ETH", "MATIC", "BNB", "ARB", "OP"}
-        token_upper = token.upper()
-        if token_upper in NATIVE_TOKENS:
-            decimals = 18
-        else:
-            decimals = 6
         token_amount = usd_amount / price
         smallest_unit = int(round(token_amount * 10**decimals))
         fmt = f".{decimals}f"

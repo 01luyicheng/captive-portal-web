@@ -39,6 +39,7 @@ from mnemonic import Mnemonic
 from price_service import PriceService
 
 app = Flask(__name__)
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -1154,11 +1155,18 @@ def index():
                 "UPDATE clients SET status = 'expired' WHERE client_ip = ?",
                 (client_ip,),
             )
+        _set_speed_limit(client_ip, full_speed=False)
     if client_status["status"] == "paid" and (
         now >= client_status["paid_until"]
         or client_status["used_bytes"] >= client_status["quota_bytes"]
     ):
         client_status["status"] = "expired"
+        with _db_conn() as conn:
+            conn.execute(
+                "UPDATE clients SET status = 'expired' WHERE client_ip = ?",
+                (client_ip,),
+            )
+        _set_speed_limit(client_ip, full_speed=False)
 
     chain_id = request.args.get("chain", DEFAULT_CHAIN)
     if chain_id not in CHAINS:
@@ -1465,6 +1473,20 @@ def check_payment():
         return forbidden
 
     client_ip = get_client_ip()
+
+    # Simple per-IP rate limit: max 5 requests per second.
+    now_ts = time.time()
+    rl_key = client_ip
+    if not hasattr(app, "_rate_limits"):
+        app._rate_limits = {}
+    rl = app._rate_limits.get(rl_key)
+    if rl and now_ts - rl[1] < 1.0:
+        if rl[0] >= 5:
+            return jsonify({"paid": False, "error": "Rate limit exceeded"}), 429
+        app._rate_limits[rl_key] = (rl[0] + 1, rl[1])
+    else:
+        app._rate_limits[rl_key] = (1, now_ts)
+
     chain_id = request.args.get("chain", DEFAULT_CHAIN)
 
     if chain_id not in CHAINS:
