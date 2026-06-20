@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <title>支付成功 - 已连接 Wi-Fi</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="card success-card">
+            <h1>支付成功</h1>
+            <p class="success-icon">✅</p>
+            <p class="lead">您现在可以关闭此页面并开始上网了。</p>
+
+            <div class="usage-panel">
+                <div class="usage-row">
+                    <span>剩余流量</span>
+                    <strong id="remaining-bytes">--</strong>
+                </div>
+                <div class="usage-row">
+                    <span>剩余时间</span>
+                    <strong id="remaining-time">--</strong>
+                </div>
+                <div class="progress-wrap">
+                    <progress id="usage-bar" class="progress-bar" value="0" max="100"></progress>
+                </div>
+                <p id="renew-hint" class="renew-hint hidden">流量或时间即将耗尽，请尽快续费。</p>
+            </div>
+
+            <p id="network-status">正在检测网络连接…</p>
+            <a href="/" class="back-link">返回首页</a>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

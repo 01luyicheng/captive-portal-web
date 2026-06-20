@@ -1,0 +1,27 @@
+[Unit]
+Description=ETH Wi-Fi Authorization Sync
+After=captive-portal.service
+Wants=captive-portal.service
+
+[Service]
+Type=simple
+User=captive-portal
+Group=captive-portal
+ExecStart=/usr/local/bin/eth-wifi-sync --daemon
+Environment=CAPTIVE_DB=/var/lib/captive-portal/payments.db
+Environment=SYNC_INTERVAL=5
+# 如需覆盖宽限期参数，请在 /etc/captive-portal/env 中设置：
+# GRACE_DURATION_SECONDS=300
+# GRACE_QUOTA_BYTES=104857600
+# ACCESS_DURATION=86400
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/captive-portal
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

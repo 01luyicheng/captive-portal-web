@@ -1,0 +1,38 @@
+[Unit]
+Description=Ethereum Captive Portal Web Service
+After=network.target
+
+[Service]
+Type=simple
+User=captive-portal
+Group=captive-portal
+WorkingDirectory=/opt/captive-portal-web
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/captive-portal
+Environment=CAPTIVE_DB=/var/lib/captive-portal/payments.db
+Environment=ACCESS_DURATION=86400
+Environment=REQUIRED_CONFIRMATIONS=3
+Environment=CAPTIVE_PORTAL_DEV=false
+# 宽限期与流量配置：
+# GRACE_DURATION_SECONDS=300
+# GRACE_QUOTA_BYTES=104857600
+# ACCESS_DURATION 为单次付费有效期（秒），默认 86400（1天）。
+# 每个档位的 quota_bytes 在 CHAINS 配置中定义，不通过环境变量指定。
+# Development helpers (keep disabled in production):
+# CAPTIVE_PORTAL_DEV=true enables /api/simulate-payment; it REQUIRES CAPTIVE_DEV_TOKEN
+# to be set, and requests must include the matching X-Dev-Token header.
+# Proxy / networking overrides (also accepted by scripts/start-ap.sh):
+# TRUSTED_PROXIES=127.0.0.1,::1
+# PHY_IF=wlx30b49ed56fdd AP_IF=wlan0-ap AP_IP=10.88.0.1/24 AP_NET=10.88.0.0/24 PORTAL_IP=10.88.0.1 PORTAL_PORT=5000
+# GUNICORN_WORKERS=2
+# Load extra environment variables (e.g. API keys) from a restricted file.
+EnvironmentFile=-/etc/captive-portal/env
+ExecStart=/opt/captive-portal-web/run.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

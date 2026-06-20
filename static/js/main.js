@@ -1,0 +1,462 @@
+(function () {
+    'use strict';
+
+    const statusEl = document.getElementById('status');
+    const checkBtn = document.getElementById('check-btn');
+    const simulateBtn = document.getElementById('simulate-btn');
+    const graceBtn = document.getElementById('grace-btn');
+    const copyBtn = document.getElementById('copy-btn');
+    const addressEl = document.getElementById('eth-address');
+    const chainSelect = document.getElementById('chain-select');
+    const tierSelect = document.getElementById('tier-select');
+    const chainInfo = document.getElementById('chain-info');
+    const qrCode = document.getElementById('qr-code');
+    const metamaskLink = document.getElementById('metamask-link');
+
+    const configEl = document.getElementById('portal-config');
+    let CONFIG = {};
+    try {
+        CONFIG = configEl ? JSON.parse(configEl.textContent) : {};
+    } catch (e) {
+        CONFIG = {};
+    }
+
+    let pollTimer = null;
+    let statusTimer = null;
+    let networkTimer = null;
+    let pollDelay = 3000;
+    let pollInFlight = false;
+    let isPageVisible = !document.hidden;
+    let chains = {};
+    let currentChain = CONFIG ? CONFIG.currentChain : null;
+    let currentTier = CONFIG ? CONFIG.tierIndex : 0;
+
+    function showStatus(message, type) {
+        if (!statusEl) return;
+        statusEl.textContent = message;
+        statusEl.className = 'status ' + (type || 'info');
+    }
+
+    function hideStatus() {
+        if (!statusEl) return;
+        statusEl.className = 'status';
+        statusEl.textContent = '';
+    }
+
+    function formatBytes(bytes) {
+        if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB';
+        if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+        if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return bytes + ' B';
+    }
+
+    function formatSeconds(totalSeconds) {
+        if (totalSeconds <= 0) return '已到期';
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        if (hours > 0) {
+            return hours + '小时 ' + minutes + '分钟';
+        }
+        return minutes + '分钟 ' + seconds + '秒';
+    }
+
+    function selectedTier() {
+        const cfg = chains[currentChain];
+        if (!cfg) return null;
+        const tiers = cfg.tiers;
+        if (!tiers || currentTier < 0 || currentTier >= tiers.length) {
+            currentTier = 0;
+        }
+        return tiers[currentTier];
+    }
+
+    function updateChainUI() {
+        const cfg = chains[currentChain];
+        if (!cfg) return;
+        const address = CONFIG ? CONFIG.ethAddress : addressEl.textContent;
+        const tier = selectedTier();
+        if (!tier) return;
+
+        qrCode.src = '/api/qr?chain=' + encodeURIComponent(currentChain) +
+            '&address=' + encodeURIComponent(address) +
+            '&amount_wei=' + encodeURIComponent(tier.amount_wei) +
+            '&t=' + Date.now();
+
+        chainInfo.textContent = '';
+        const nameEl = document.createElement('strong');
+        nameEl.textContent = cfg.icon + ' ' + cfg.name;
+        chainInfo.appendChild(nameEl);
+        chainInfo.appendChild(document.createTextNode(' · 档位：支付 '));
+        const amountEl = document.createElement('strong');
+        amountEl.textContent = tier.amount_eth;
+        chainInfo.appendChild(amountEl);
+        chainInfo.appendChild(document.createTextNode(' · 获得 '));
+        const quotaEl = document.createElement('strong');
+        quotaEl.textContent = formatBytes(tier.quota_bytes);
+        chainInfo.appendChild(quotaEl);
+        chainInfo.appendChild(document.createTextNode(' · 预计 ' + (cfg.block_time * 3) + ' 秒确认'));
+
+        // MetaMask deep link (mobile wallet browsers)
+        const mmUri = 'https://metamask.app.link/send/' + address +
+            '@' + cfg.chain_id + '?value=' + tier.amount_wei;
+        metamaskLink.href = mmUri;
+
+        showStatus('已切换到 ' + cfg.name + ' · ' + formatBytes(tier.quota_bytes) + ' 档位', 'info');
+    }
+
+    function populateTierSelect() {
+        if (!tierSelect) return;
+        const cfg = chains[currentChain];
+        if (!cfg) return;
+        tierSelect.innerHTML = '';
+        cfg.tiers.forEach(function (tier, idx) {
+            const option = document.createElement('option');
+            option.value = idx;
+            option.textContent = formatBytes(tier.quota_bytes) + ' · ' + tier.amount_eth;
+            tierSelect.appendChild(option);
+        });
+        if (currentTier >= cfg.tiers.length) {
+            currentTier = 0;
+        }
+        tierSelect.value = currentTier;
+    }
+
+    async function loadChains() {
+        try {
+            const res = await fetch('/api/chains');
+            if (!res.ok) throw new Error('加载网络列表失败');
+            chains = await res.json();
+
+            if (chainSelect) {
+                chainSelect.innerHTML = '';
+                const recommendedGroup = document.createElement('optgroup');
+                recommendedGroup.label = '推荐网络';
+                const otherGroup = document.createElement('optgroup');
+                otherGroup.label = '其他网络';
+
+                Object.keys(chains).forEach(function (id) {
+                    const cfg = chains[id];
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = cfg.icon + ' ' + cfg.name;
+                    if (cfg.recommended) {
+                        recommendedGroup.appendChild(option);
+                    } else {
+                        otherGroup.appendChild(option);
+                    }
+                });
+
+                chainSelect.appendChild(recommendedGroup);
+                chainSelect.appendChild(otherGroup);
+                chainSelect.value = currentChain;
+            }
+
+            populateTierSelect();
+            updateChainUI();
+        } catch (err) {
+            showStatus('无法加载支付网络：' + err.message, 'error');
+        }
+    }
+
+    function buildIndexUrl() {
+        return '/?chain=' + encodeURIComponent(currentChain) +
+            '&tier=' + encodeURIComponent(currentTier);
+    }
+
+    function schedulePoll(delay) {
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = null;
+        if (!isPageVisible) return;
+        pollTimer = setTimeout(function () {
+            checkPayment(true);
+        }, delay);
+    }
+
+    function startPaymentPolling() {
+        pollDelay = 3000;
+        schedulePoll(pollDelay);
+    }
+
+    function stopPaymentPolling() {
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = null;
+    }
+
+    async function checkPayment(auto) {
+        if (pollInFlight) return;
+        pollInFlight = true;
+
+        try {
+            if (!auto && checkBtn) {
+                checkBtn.disabled = true;
+                showStatus('正在检查支付状态…', 'info');
+            }
+
+            const url = '/api/check-payment?chain=' + encodeURIComponent(currentChain) +
+                '&tier=' + encodeURIComponent(currentTier);
+            var controller = null;
+            var fetchTimeout = null;
+            if (typeof AbortController !== 'undefined') {
+                controller = new AbortController();
+                fetchTimeout = setTimeout(function () {
+                    controller.abort();
+                }, 20000);
+            }
+
+            const res = await fetch(url, {
+                method: 'POST',
+                signal: controller ? controller.signal : undefined
+            });
+            if (fetchTimeout) clearTimeout(fetchTimeout);
+
+            if (!res.ok) {
+                throw new Error('网络请求失败：' + res.status);
+            }
+            const data = await res.json();
+
+            if (data.paid) {
+                if (data.status === 'grace') {
+                    showStatus('当前处于宽限期，正在跳转…', 'info');
+                } else {
+                    showStatus('支付已确认，正在跳转…', 'success');
+                }
+                stopPaymentPolling();
+                setTimeout(function () {
+                    window.location.href = '/success';
+                }, 1000);
+                return;
+            } else if (!auto) {
+                showStatus('尚未检测到支付，请完成支付后等待确认。', 'error');
+            }
+
+            if (auto) {
+                pollDelay = 3000;
+                schedulePoll(pollDelay);
+            }
+        } catch (err) {
+            if (!auto) {
+                showStatus('检查失败：' + err.message, 'error');
+            }
+            if (auto) {
+                pollDelay = Math.min(30000, pollDelay * 2);
+                schedulePoll(pollDelay);
+            }
+        } finally {
+            pollInFlight = false;
+            if (!auto && checkBtn) {
+                checkBtn.disabled = false;
+            }
+        }
+    }
+
+    async function simulatePayment() {
+        if (!CONFIG || !CONFIG.devMode) {
+            showStatus('当前环境不支持模拟支付。', 'error');
+            return;
+        }
+
+        try {
+            if (simulateBtn) simulateBtn.disabled = true;
+            const url = '/api/simulate-payment?chain=' + encodeURIComponent(currentChain) +
+                '&tier=' + encodeURIComponent(currentTier);
+            const res = await fetch(url, { method: 'POST' });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || '请求失败：' + res.status);
+            }
+            showStatus('模拟支付成功，正在跳转…', 'success');
+            setTimeout(function () {
+                window.location.href = '/success';
+            }, 1000);
+        } catch (err) {
+            showStatus('模拟支付失败：' + err.message, 'error');
+            if (simulateBtn) simulateBtn.disabled = false;
+        }
+    }
+
+    async function activateGrace() {
+        if (!graceBtn) return;
+        try {
+            graceBtn.disabled = true;
+            showStatus('正在开启临时免费上网…', 'info');
+            const res = await fetch('/api/activate-grace', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok || !data.ok) {
+                throw new Error(data.error || '开启失败：' + res.status);
+            }
+            showStatus('已开启临时免费上网（' + formatBytes(data.quota_bytes) + ' / 5分钟）', 'success');
+            setTimeout(function () {
+                window.location.reload();
+            }, 1000);
+        } catch (err) {
+            showStatus('开启失败：' + err.message, 'error');
+            if (graceBtn) graceBtn.disabled = false;
+        }
+    }
+
+    if (chainSelect) {
+        chainSelect.addEventListener('change', function () {
+            const selected = chainSelect.value;
+            if (selected !== currentChain) {
+                currentChain = selected;
+                populateTierSelect();
+                window.location.href = buildIndexUrl();
+            }
+        });
+    }
+
+    if (tierSelect) {
+        tierSelect.addEventListener('change', function () {
+            const selected = parseInt(tierSelect.value, 10);
+            if (!isNaN(selected) && selected !== currentTier) {
+                currentTier = selected;
+                window.location.href = buildIndexUrl();
+            }
+        });
+    }
+
+    if (checkBtn) {
+        checkBtn.addEventListener('click', function () {
+            checkPayment(false);
+        });
+    }
+
+    if (simulateBtn) {
+        simulateBtn.addEventListener('click', simulatePayment);
+    }
+
+    if (graceBtn) {
+        graceBtn.addEventListener('click', activateGrace);
+    }
+
+    if (copyBtn && addressEl) {
+        copyBtn.addEventListener('click', function () {
+            const text = addressEl.textContent;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(function () {
+                    showStatus('地址已复制到剪贴板', 'success');
+                }, function () {
+                    showStatus('复制失败', 'error');
+                });
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showStatus('地址已复制到剪贴板', 'success');
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Success page: poll /api/status and /generate_204.
+    // ------------------------------------------------------------------
+    function updateUsageBar(used, quota) {
+        const bar = document.getElementById('usage-bar');
+        if (!bar || quota <= 0) return;
+        const pct = Math.min(100, Math.max(0, (used / quota) * 100));
+        bar.value = pct;
+        bar.classList.remove('warning', 'danger');
+        if (pct >= 90) {
+            bar.classList.add('danger');
+        } else if (pct >= 70) {
+            bar.classList.add('warning');
+        }
+    }
+
+    async function pollStatus() {
+        try {
+            const res = await fetch('/api/status');
+            if (!res.ok) return;
+            const data = await res.json();
+
+            const remainingBytesEl = document.getElementById('remaining-bytes');
+            const remainingTimeEl = document.getElementById('remaining-time');
+            const renewHint = document.getElementById('renew-hint');
+
+            if (data.status !== 'paid' && data.status !== 'grace') {
+                window.location.href = '/';
+                return;
+            }
+
+            const remainingBytes = data.remaining_bytes || 0;
+            const limitTime = data.status === 'paid' ? data.paid_until : data.grace_until;
+            const remainingSeconds = Math.max(0, limitTime - Math.floor(Date.now() / 1000));
+
+            const h1 = document.querySelector('h1');
+            if (data.status === 'grace') {
+                if (h1) h1.textContent = '当前处于宽限期';
+            } else {
+                if (h1) h1.textContent = '支付成功';
+            }
+
+            if (remainingBytesEl) remainingBytesEl.textContent = formatBytes(remainingBytes);
+            if (remainingTimeEl) remainingTimeEl.textContent = formatSeconds(remainingSeconds);
+            updateUsageBar(data.used_bytes, data.quota_bytes);
+
+            if (renewHint) {
+                if (remainingBytes < 52428800 || remainingSeconds < 600) {
+                    renewHint.classList.remove('hidden');
+                } else {
+                    renewHint.classList.add('hidden');
+                }
+            }
+        } catch (err) {
+            // ignore polling errors
+        }
+    }
+
+    function checkNetwork() {
+        const statusText = document.getElementById('network-status');
+        fetch('/generate_204', { cache: 'no-store', redirect: 'manual' })
+            .then(function (res) {
+                if (res.status === 204) {
+                    if (statusText) statusText.textContent = '网络已连通，您可以关闭此窗口。';
+                } else {
+                    if (statusText) statusText.textContent = '网络状态检测中，请稍候…';
+                }
+            })
+            .catch(function () {
+                if (statusText) statusText.textContent = '网络状态检测中，请稍候…';
+            });
+    }
+
+    function clearTimers() {
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = null;
+        if (statusTimer) clearInterval(statusTimer);
+        statusTimer = null;
+        if (networkTimer) clearInterval(networkTimer);
+        networkTimer = null;
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) {
+            isPageVisible = false;
+            stopPaymentPolling();
+        } else {
+            isPageVisible = true;
+            if (currentChain && !document.getElementById('remaining-bytes')) {
+                startPaymentPolling();
+            }
+        }
+    });
+
+    if (document.getElementById('remaining-bytes')) {
+        // On success page.
+        pollStatus();
+        statusTimer = setInterval(pollStatus, 3000);
+        checkNetwork();
+        networkTimer = setInterval(checkNetwork, 3000);
+    } else if (currentChain) {
+        // On payment page.
+        loadChains();
+        startPaymentPolling();
+    }
+
+    window.addEventListener('pagehide', clearTimers);
+    window.addEventListener('beforeunload', clearTimers);
+})();

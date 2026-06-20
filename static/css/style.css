@@ -1,0 +1,344 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #f4f6f8;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 480px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 0.5em;
+}
+
+.lead {
+    text-align: center;
+    font-size: 1.1em;
+    color: #555;
+}
+
+.card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    margin-top: 20px;
+}
+
+.card h2 {
+    font-size: 1.1em;
+    margin-top: 0;
+    margin-bottom: 12px;
+    color: #222;
+}
+
+.chain-section {
+    margin-bottom: 20px;
+}
+
+.chain-section label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+}
+
+.tier-label {
+    margin-top: 16px;
+}
+
+.chain-select {
+    width: 100%;
+    padding: 12px;
+    font-size: 1em;
+    border: 1px solid #c6cbd1;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.chain-info {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    font-size: 0.95em;
+    color: #555;
+    text-align: center;
+}
+
+.wallet-links {
+    text-align: center;
+    margin: 12px 0 20px;
+}
+
+.wallet-links a {
+    color: #0366d6;
+    text-decoration: none;
+    font-size: 0.95em;
+}
+
+.wallet-links a:hover {
+    text-decoration: underline;
+}
+
+.address-box {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: #f8f9fa;
+    border: 1px solid #e1e4e8;
+    border-radius: 8px;
+    padding: 10px;
+    word-break: break-all;
+}
+
+.address-box code {
+    flex: 1;
+    font-size: 0.9em;
+    color: #0366d6;
+}
+
+.qr-code {
+    display: block;
+    margin: 16px auto;
+    max-width: 220px;
+    width: 100%;
+    height: auto;
+    border: 1px solid #e1e4e8;
+    border-radius: 8px;
+}
+
+.tx-section {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #e1e4e8;
+}
+
+.tx-section p {
+    margin: 0 0 12px;
+    color: #555;
+    font-size: 0.95em;
+}
+
+.tx-input-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.tx-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 12px;
+    font-size: 0.95em;
+    border: 1px solid #c6cbd1;
+    border-radius: 8px;
+    font-family: monospace;
+}
+
+.tx-input:focus {
+    outline: none;
+    border-color: #0366d6;
+    box-shadow: 0 0 0 2px rgba(3, 102, 214, 0.15);
+}
+
+.actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+button, .back-link {
+    flex: 1;
+    min-width: 120px;
+    padding: 12px 16px;
+    font-size: 1em;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+}
+
+button {
+    background: #0366d6;
+    color: #fff;
+    transition: background 0.2s;
+}
+
+button:hover {
+    background: #024ea4;
+}
+
+button.secondary {
+    background: #6c757d;
+}
+
+button.secondary:hover {
+    background: #545b62;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.status {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+    display: none;
+}
+
+.status.info {
+    display: block;
+    background: #e7f3ff;
+    color: #004085;
+}
+
+.status.success {
+    display: block;
+    background: #d4edda;
+    color: #155724;
+}
+
+.status.error {
+    display: block;
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.success-card {
+    text-align: center;
+}
+
+.success-icon {
+    font-size: 3em;
+    margin: 0.2em 0;
+}
+
+footer {
+    text-align: center;
+    margin-top: 24px;
+    color: #777;
+    font-size: 0.9em;
+}
+
+.grace-banner {
+    margin: 16px 0;
+    padding: 12px;
+    background: #fff3cd;
+    color: #856404;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.grace-action {
+    margin: 16px 0;
+    text-align: center;
+}
+
+.usage-panel {
+    margin: 20px 0;
+    text-align: left;
+}
+
+.usage-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #e1e4e8;
+    color: #555;
+}
+
+.usage-row strong {
+    color: #222;
+}
+
+.progress-wrap {
+    height: 12px;
+    background: #e1e4e8;
+    border-radius: 6px;
+    margin: 16px 0;
+    overflow: hidden;
+}
+
+.progress-bar {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 6px;
+    background: #e1e4e8;
+}
+
+.progress-bar::-webkit-progress-bar {
+    background: #e1e4e8;
+    border-radius: 6px;
+}
+
+.progress-bar::-webkit-progress-value {
+    background: #28a745;
+    border-radius: 6px;
+    transition: width 0.3s ease;
+}
+
+.progress-bar::-moz-progress-bar {
+    background: #28a745;
+    border-radius: 6px;
+    transition: width 0.3s ease;
+}
+
+.progress-bar.warning::-webkit-progress-value {
+    background: #ffc107;
+}
+
+.progress-bar.warning::-moz-progress-bar {
+    background: #ffc107;
+}
+
+.progress-bar.danger::-webkit-progress-value {
+    background: #dc3545;
+}
+
+.progress-bar.danger::-moz-progress-bar {
+    background: #dc3545;
+}
+
+.renew-hint {
+    color: #856404;
+    background: #fff3cd;
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.hidden {
+    display: none !important;
+}
+
+@media (max-width: 360px) {
+    .container {
+        margin: 20px auto;
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+}
